@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DevLogs</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230F172A'/><path d='M9 11l5 5-5 5' fill='none' stroke='%2322C55E' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/><path d='M18 21h6' stroke='%2322C55E' stroke-width='3' stroke-linecap='round'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0F172A; --card:#1B2336; --card2:#141B2D; --fg:#F8FAFC; --muted:#94A3B8;
+    --border:#334155; --accent:#22C55E; --accent-fg:#0F172A; --ring:#38BDF8;
+    /* debug/trace lifted to >=4.5:1 on --bg; the old #64748B/#475569 read at 3.8:1 / 2.4:1 */
+    --err:#EF4444; --warn:#F59E0B; --info:#38BDF8; --debug:#8595AD; --trace:#7A8AA3;
+    --icon:#62748F;  /* idle icon buttons — 3.3:1 on --card, the non-text UI minimum */
+    --hover-bg:#20293d; --hover-bd:#3f4d68; --sel-bg:#182a20; --copied-bg:#16371F;
+    --mark-bg:#F59E0B; --mark-fg:#000; --backdrop:rgba(2,6,23,.72);
+    --danger-fg:#FCA5A5; --danger-bd:#7F1D1D; --danger-bg:#3B1213;
+    --c-svc:#5EEAD4; --c-brk:#64748B; --c-thread:#A78BFA; --c-logger:#38BDF8; --c-key:#F59E0B;
+    --c-str:#86EFAC; --c-http:#F472B6; --c-url:#93C5FD; --c-lit:#C084FC; --c-num:#FBBF24;
+    --spin-track:rgba(15,23,42,.35);
+    --sp1:4px; --sp2:8px; --sp3:12px; --sp4:16px; --radius:8px;
+  }
+  /* Light theme. Every text colour re-checked to 4.5:1 on its own background, icons to 3:1. */
+  body.light{
+    --bg:#F8FAFC; --card:#FFFFFF; --card2:#F1F5F9; --fg:#0F172A; --muted:#55627A;
+    --border:#CBD5E1; --accent:#15803D; --accent-fg:#FFFFFF; --ring:#0369A1;
+    --err:#B91C1C; --warn:#B45309; --info:#0369A1; --debug:#576378; --trace:#6B7280;
+    --icon:#64748B;
+    --hover-bg:#E9EEF5; --hover-bd:#94A3B8; --sel-bg:#DCFCE7; --copied-bg:#DCFCE7;
+    --mark-bg:#FDE68A; --mark-fg:#0F172A; --backdrop:rgba(15,23,42,.4);
+    --danger-fg:#B91C1C; --danger-bd:#FCA5A5; --danger-bg:#FEE2E2;
+    --c-svc:#0F766E; --c-brk:#576378; --c-thread:#6D28D9; --c-logger:#0369A1; --c-key:#B45309;
+    --c-str:#15803D; --c-http:#BE185D; --c-url:#1D4ED8; --c-lit:#7E22CE; --c-num:#A16207;
+    --spin-track:rgba(255,255,255,.45);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:13px; display:flex; flex-direction:column;
+  }
+  button,input{font-family:inherit;font-size:inherit}
+  button{cursor:pointer}
+  :focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:5px}
+
+  header{
+    display:flex;align-items:center;gap:var(--sp3);padding:var(--sp3) var(--sp4);
+    background:var(--card);border-bottom:1px solid var(--border);flex-wrap:wrap;
+  }
+  .brand{font-weight:700;letter-spacing:.5px}
+  .brand b{color:var(--accent)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--debug);display:inline-block;margin-right:6px}
+  .dot.on{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+  .dot.err{background:var(--err);box-shadow:0 0 8px var(--err)}
+  .spacer{flex:1}
+  input[type=password],input[type=text]{
+    background:var(--card2);border:1px solid var(--border);color:var(--fg);
+    padding:7px 10px;border-radius:var(--radius);min-width:0;
+  }
+  input::placeholder{color:var(--muted)}
+  .btn{
+    background:var(--card2);border:1px solid var(--border);color:var(--fg);
+    padding:7px 12px;border-radius:var(--radius);transition:background .15s,border-color .15s;
+  }
+  .btn:hover{background:var(--hover-bg);border-color:var(--hover-bd)}
+  .btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:700}
+  .btn.primary:hover{filter:brightness(1.08)}
+  .btn[aria-pressed=true]{border-color:var(--accent);color:var(--accent)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn.ibtn{padding:7px 10px;font-weight:700;line-height:1}
+  select#domain{
+    background:var(--card2);border:1px solid var(--border);color:var(--fg);
+    padding:7px 10px;border-radius:var(--radius);max-width:280px;
+  }
+  .btn.danger:not(:disabled){color:var(--danger-fg);border-color:var(--danger-bd)}
+  .btn.danger:not(:disabled):hover{background:var(--danger-bg);border-color:var(--err)}
+
+  main{flex:1;display:flex;min-height:0}
+  aside{
+    width:300px;flex:0 0 300px;background:var(--card);border-right:1px solid var(--border);
+    display:flex;flex-direction:column;min-height:0;
+  }
+  aside .head{padding:var(--sp3) var(--sp4);border-bottom:1px solid var(--border);display:flex;gap:var(--sp2);align-items:center}
+  aside .head input{flex:1}
+  .svc-actions{display:flex;gap:var(--sp2);padding:var(--sp2) var(--sp4);border-bottom:1px solid var(--border)}
+  .svc-actions .btn{padding:6px 8px;font-size:12px;flex:1;min-height:30px;display:flex;align-items:center;justify-content:center;gap:4px}
+  .svc-list{overflow:auto;flex:1;padding:var(--sp2)}
+  .svc{display:flex;align-items:center;gap:var(--sp2);padding:6px 8px;border-radius:6px;cursor:pointer;min-height:30px}
+  .svc:hover{background:var(--card2)}
+  .svc:has(input:checked){background:var(--sel-bg)}
+  .svc:has(input:checked) .name{color:var(--accent)}
+  .svc input{accent-color:var(--accent);width:15px;height:15px;cursor:pointer}
+  .svc .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .star{background:none;border:none;color:var(--icon);font-size:15px;line-height:1;opacity:0;
+    width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 24px}
+  .svc:hover .star,.star:focus-visible,.star.on{opacity:1}   /* one control less to look at */
+  .star:hover{color:var(--warn)}
+  .star.on{color:var(--warn)}
+  .age{color:var(--muted);font-size:12px;flex:0 0 auto;font-variant-numeric:tabular-nums;opacity:.75}
+  .ico{width:14px;height:14px;flex:0 0 14px;fill:none;vertical-align:-2px}
+  #starOnly[aria-pressed=true]{color:var(--warn);border-color:var(--warn)}
+  #downOnly[aria-pressed=true],#downOnly.has-down{color:var(--err);border-color:var(--err)}
+  .svc-empty{color:var(--muted);padding:var(--sp4);text-align:center;line-height:1.6}
+
+  /* shape carries the state as well as colour — colour alone fails WCAG 1.4.1 and colour-blind eyes:
+     ● healthy  ○ progressing  ■ degraded  □ missing  ▬ suspended  ◌ unknown */
+  .hdot{flex:0 0 9px;width:9px;height:9px;border-radius:50%;border:2px solid transparent;background:var(--debug)}
+  .hdot.Healthy{background:var(--accent)}
+  .hdot.Progressing{background:none;border-color:var(--info)}
+  .hdot.Degraded{background:var(--err);border-radius:1px;box-shadow:0 0 6px var(--err)}
+  .hdot.Missing{background:none;border-color:var(--warn);border-radius:1px}
+  .hdot.Suspended{background:var(--trace);height:3px;border-radius:1px}
+  .hdot.Unknown{background:none;border-color:var(--debug)}
+  .hdot.osync{outline:2px dotted var(--warn);outline-offset:2px}
+
+  .grp{display:flex;align-items:center;gap:var(--sp2);padding:5px 8px;border-radius:6px;margin-top:var(--sp2)}
+  .grp:hover{background:var(--card2)}
+  .branch{margin-left:11px;padding-left:5px;border-left:1px solid var(--border)}
+  .grp input{accent-color:var(--accent);width:15px;height:15px;cursor:pointer}
+  .twist{background:none;border:none;color:var(--muted);font-size:11px;
+    width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 24px}
+  .gname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;
+    font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .gcount{color:var(--muted);font-weight:400;letter-spacing:0}
+  .gdown{color:var(--err);font-weight:700}
+  .gdel{background:none;border:none;color:var(--icon);font-size:14px;line-height:1;
+    width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 24px}
+  .gdel:hover{color:var(--err)}
+
+  dialog#dlg{
+    background:var(--card);color:var(--fg);border:1px solid var(--border);border-radius:var(--radius);
+    padding:var(--sp4);max-width:560px;font-family:inherit;font-size:13px;
+  }
+  dialog#dlg::backdrop{background:var(--backdrop)}
+  dialog#dlg h2{margin:0 0 var(--sp2);font-size:15px}
+  dialog#dlg p{margin:0 0 var(--sp2);color:var(--muted)}
+  .dlg-on b{color:var(--fg)}
+  dialog#dlg ul{
+    margin:0 0 var(--sp3);padding:var(--sp2) var(--sp3);list-style:none;max-height:34vh;overflow:auto;
+    background:var(--card2);border:1px solid var(--border);border-radius:6px;
+  }
+  dialog#dlg li{padding:2px 0;overflow-wrap:anywhere}
+  #dlgChallengeWrap{display:flex;align-items:center;gap:var(--sp2);color:var(--muted);margin-bottom:var(--sp3)}
+  #dlgChallengeWrap b{color:var(--err)}
+  #dlgChallenge{flex:1}
+  .dlg-actions{display:flex;gap:var(--sp2);justify-content:flex-end}
+
+  .spinner{display:inline-block;width:13px;height:13px;border:2px solid var(--border);
+    border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
+  .btn.primary .spinner{border-color:var(--spin-track);border-top-color:var(--accent-fg)}
+  .dot.busy{background:var(--ring);animation:pulse 1s ease-in-out infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes pulse{50%{opacity:.25}}
+
+  section.logs{flex:1;display:flex;flex-direction:column;min-width:0}
+  .toolbar{display:flex;gap:var(--sp2);align-items:center;padding:var(--sp2) var(--sp4);border-bottom:1px solid var(--border);background:var(--card2);flex-wrap:wrap}
+  .toolbar input[type=text]{flex:1;min-width:160px}
+  .lvl{display:flex;gap:2px}
+  .lvl .btn{padding:6px 9px;font-size:12px}
+  .count{color:var(--muted);font-size:12px;white-space:nowrap}
+  .pane{flex:1;overflow:auto;padding:var(--sp2) 0;background:var(--bg)}
+  .row{display:flex;gap:var(--sp3);padding:2px var(--sp4);white-space:pre-wrap;word-break:break-word;border-left:3px solid transparent}
+  .row:hover{background:var(--card2)}
+  .row.copied{background:var(--copied-bg);transition:background .2s}
+  .row.ERROR{border-left-color:var(--err)}
+  .row.WARN{border-left-color:var(--warn)}
+  /* fixed width so the level and message columns line up across services */
+  .badge{flex:0 0 14ch;color:var(--accent);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lv{flex:0 0 46px;text-align:right;font-weight:700}
+  .lv.ERROR{color:var(--err)} .lv.WARN{color:var(--warn)} .lv.INFO{color:var(--info)}
+  .lv.DEBUG{color:var(--debug)} .lv.TRACE{color:var(--trace)}
+  .msg{flex:1;min-width:0;overflow-wrap:anywhere}
+  .msg .trace{color:var(--info);cursor:pointer;text-decoration:underline dotted}
+  .msg .cont{color:var(--muted)}
+  .msg mark{background:var(--mark-bg);color:var(--mark-fg);border-radius:2px}
+  details.json>summary{cursor:pointer;color:var(--c-svc);list-style:none}
+  details.json>summary::marker,details.json>summary::-webkit-details-marker{content:"";display:none}
+  details.json>summary::before{content:"▸ { } ";color:var(--muted)}
+  details.json[open]>summary::before{content:"▾ { } "}
+  details.json pre{margin:4px 0 8px;padding:8px 10px;background:var(--card);border-left:2px solid var(--border);
+    border-radius:6px;overflow-x:auto;white-space:pre;max-height:60vh;overflow-y:auto}
+  .c-lit{color:var(--c-lit)}
+  .c-num{color:var(--c-num)}
+  .c-ts{color:var(--muted);opacity:.85}
+  .c-svc{color:var(--c-svc)}
+  .c-brk{color:var(--c-brk)}
+  .c-thread{color:var(--c-thread)}
+  .c-logger{color:var(--c-logger)}
+  .c-key{color:var(--c-key)}
+  .c-str{color:var(--c-str)}
+  .c-http{color:var(--c-http);font-weight:700}
+  .c-url{color:var(--c-url);text-decoration:underline dotted}
+  .empty{color:var(--muted);text-align:center;padding:48px 16px;line-height:1.8}
+  #navToggle{display:none}
+  @media (max-width:720px){
+    #navToggle{display:inline-block}
+    aside{position:absolute;z-index:5;height:calc(100% - 56px);box-shadow:0 8px 32px rgba(0,0,0,.55)}
+    body.nav-off aside{display:none}  /* it overlays the logs — needs a way back out */
+    header input[type=password]{flex:1;width:auto!important;min-width:120px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body class="nav-off">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-folder" viewBox="0 0 16 16"><path d="M1.6 3.4h4.2l1.5 2h7.1v7.3a.9.9 0 0 1-.9.9H2.5a.9.9 0 0 1-.9-.9z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 16 16"><path d="M8 2.3 15 13.6H1z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M8 6.5v3.1M8 11.5v.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+  <symbol id="i-bookmark" viewBox="0 0 16 16"><path d="M4.2 2.4h7.6v11.2L8 10.7l-3.8 2.9z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 16 16"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 16 16"><path d="M13 10.2A5.6 5.6 0 0 1 5.8 3a5.6 5.6 0 1 0 7.2 7.2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.1" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.4v1.6M8 13v1.6M1.4 8h1.6M13 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M12.6 3.4l-1.1 1.1M4.5 11.5l-1.1 1.1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></symbol>
+</svg>
+<header>
+  <button class="btn" id="navToggle" aria-label="Show or hide the service list" aria-expanded="false"><svg class="ico" aria-hidden="true"><use href="#i-menu"/></svg></button>
+  <div class="brand">Dev<b>Logs</b></div>
+  <span><span class="dot" id="dot"></span><span id="status" role="status" aria-live="polite">no token</span></span>
+  <div class="spacer"></div>
+  <select id="domain" aria-label="ArgoCD domain" title="ArgoCD server — each domain keeps its own token"></select>
+  <button class="btn ibtn" id="domAdd" aria-label="Add an ArgoCD domain" title="Add a domain">+</button>
+  <button class="btn ibtn" id="domDel" aria-label="Remove the selected domain" title="Remove this domain">−</button>
+  <input type="password" id="token" placeholder="paste argocd.token cookie…" style="width:260px" autocomplete="off" aria-label="ArgoCD token">
+  <button class="btn primary" id="saveTok">Connect</button>
+  <button class="btn ibtn" id="theme" aria-label="Switch between the dark and light theme" title="Theme"></button>
+  <a class="btn" id="bmk" href="#" title="Drag to bookmarks bar; click while on the ArgoCD tab to grab the token"><svg class="ico" aria-hidden="true"><use href="#i-bookmark"/></svg> grab-token</a>
+</header>
+<dialog id="dlg" aria-labelledby="dlgTitle">
+  <form method="dialog">
+    <h2 id="dlgTitle"></h2>
+    <p id="dlgWhat"></p>
+    <p class="dlg-on">on <b id="dlgDomain"></b></p>
+    <ul id="dlgList"></ul>
+    <label id="dlgChallengeWrap">type <b id="dlgWord"></b> to confirm
+      <input type="text" id="dlgChallenge" autocomplete="off" spellcheck="false"></label>
+    <div class="dlg-actions">
+      <button type="button" class="btn" id="dlgCancel">Cancel</button>
+      <button type="submit" value="ok" class="btn danger" id="dlgOk">Confirm</button>
+    </div>
+  </form>
+</dialog>
+<main>
+  <aside>
+    <div class="head"><input type="text" id="svcFilter" placeholder="filter services…" aria-label="Filter services"></div>
+    <div class="svc-actions">
+      <button class="btn" id="selAll" title="Select all services matching the current filter">all shown</button>
+      <button class="btn" id="selNone">none</button>
+      <button class="btn" id="starOnly" aria-pressed="false" aria-label="Show starred services only" title="Show starred only">★</button>
+      <button class="btn" id="downOnly" aria-pressed="false" aria-label="Show unhealthy services only" title="Show unhealthy services only"><svg class="ico" aria-hidden="true"><use href="#i-warn"/></svg></button>
+      <button class="btn" id="grpAdd" aria-label="Move the ticked services into a group" title="Move the ticked services into a group"><svg class="ico" aria-hidden="true"><use href="#i-folder"/></svg></button>
+    </div>
+    <div class="svc-actions ops">
+      <button class="btn" id="opRefresh" disabled title="argocd app get --refresh: re-read git and cluster state, changes nothing">refresh</button>
+      <button class="btn" id="opSync" disabled title="argocd app sync --async: apply the git state to the cluster">sync</button>
+      <button class="btn danger" id="opRestart" disabled title="argocd app actions run restart: restart the pods of every Deployment">restart</button>
+    </div>
+    <div class="svc-list" id="svcList"><div class="svc-empty">Connect with a token to load services.</div></div>
+  </aside>
+  <section class="logs">
+    <div class="toolbar">
+      <button class="btn" id="tail" aria-pressed="true">▶ tail</button>
+      <div class="lvl" id="lvl">
+        <button class="btn" data-lv="ERROR" aria-pressed="true">ERR</button>
+        <button class="btn" data-lv="WARN" aria-pressed="true">WARN</button>
+        <button class="btn" data-lv="INFO" aria-pressed="true">INFO</button>
+        <button class="btn" data-lv="DEBUG" aria-pressed="true">DBG</button>
+      </div>
+      <input type="text" id="grep" placeholder="filter text / traceId…" aria-label="Filter log text">
+      <button class="btn" id="autoscroll" aria-pressed="true">⤓ auto</button>
+      <button class="btn" id="copy" title="Copy every line currently shown (level + text filters applied)">copy</button>
+      <button class="btn" id="clear">clear</button>
+      <span class="count" id="count">0 lines</span>
+    </div>
+    <div class="pane" id="pane"><div class="empty">Pick services on the left. Live logs stream here,<br>merged and time-sorted across services.</div></div>
+  </section>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const state = { apps:[], health:{}, selected:new Set(), levels:new Set(["ERROR","WARN","INFO","DEBUG","TRACE"]),
+  tail:true, autoscroll:true, grep:"", es:null, buf:[], MAX:5000,
+  labels:{}, domains:[], active:"", starred:new Set(JSON.parse(localStorage.getItem("devlogs.starred")||"[]")), starOnly:false, downOnly:false,
+  groups:JSON.parse(localStorage.getItem("devlogs.groups")||"{}"),
+  collapsed:new Set(JSON.parse(localStorage.getItem("devlogs.collapsed")||"[]")) };
+function saveStars(){ localStorage.setItem("devlogs.starred", JSON.stringify([...state.starred])); }
+function saveGroups(){ localStorage.setItem("devlogs.groups", JSON.stringify(state.groups)); }
+function saveCollapsed(){ localStorage.setItem("devlogs.collapsed", JSON.stringify([...state.collapsed])); }
+const HEALTH_MS = 30000;
+
+function healthOf(a){ return state.health[a] || {health:"Unknown", sync:"Unknown", syncedAt:""}; }
+function ago(iso){
+  const t = Date.parse(iso || "");
+  if(isNaN(t)) return "";
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  if(s < 60) return Math.round(s) + "s";
+  if(s < 3600) return Math.round(s/60) + "m";
+  if(s < 86400) return Math.round(s/3600) + "h";
+  return Math.round(s/86400) + "d";
+}
+function isDown(a){ const h = healthOf(a).health; return h !== "Healthy" && h !== "Unknown"; }
+function groupOf(a){ for(const g in state.groups) if(state.groups[g].includes(a)) return g; return null; }
+
+// ---- bookmarklet: run on the ArgoCD tab, POST token to this UI ----
+const BM = `javascript:(()=>{const m=document.cookie.match(/argocd\\.token=([^;]+)/);if(!m){alert('argocd.token not found in document.cookie (likely HttpOnly). Copy it from DevTools > Application > Cookies instead.');return;}fetch('http://localhost:${location.port||8900}/api/token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:decodeURIComponent(m[1])})}).then(r=>r.json()).then(d=>alert(d.ok?('Token sent. '+d.count+' apps visible.'):('Rejected: '+d.error))).catch(e=>alert('POST failed: '+e));})()`;
+$("#bmk").setAttribute("href", BM);
+
+// ---- theme ----
+function applyTheme(light){
+  document.body.classList.toggle("light", light);
+  $("#theme").innerHTML = `<svg class="ico" aria-hidden="true"><use href="#i-${light ? "moon" : "sun"}"/></svg>`;
+  $("#theme").title = light ? "Switch to the dark theme" : "Switch to the light theme";
+}
+(function initTheme(){
+  const saved = localStorage.getItem("devlogs.theme");
+  const osLight = typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: light)").matches;
+  applyTheme(saved ? saved === "light" : osLight);
+})();
+$("#theme").onclick = () => {
+  const light = !document.body.classList.contains("light");
+  localStorage.setItem("devlogs.theme", light ? "light" : "dark");
+  applyTheme(light);
+};
+
+function setStatus(txt, cls){ $("#status").textContent = txt; $("#dot").className = "dot " + (cls||""); }
+
+// ---- domains: one ArgoCD server per entry, each with its own token in the backend's memory ----
+async function post(url, body){
+  const r = await fetch(url, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+  return r.json();
+}
+function renderDomains(d){
+  if(!d || !Array.isArray(d.domains) || !d.domains.length) return false;  // e.g. a stale backend
+  state.domains = d.domains; state.active = d.active;
+  const sel = $("#domain"); sel.innerHTML = "";
+  for(const x of d.domains){
+    const o = document.createElement("option");
+    o.value = x.domain; o.selected = x.domain === d.active;
+    o.textContent = (x.hasToken ? "\u25CF " : "\u25CB ") + x.domain;   // filled = token in memory
+    o.title = x.hasToken ? "token loaded" : "no token yet";
+    sel.append(o);
+  }
+  $("#domDel").disabled = d.domains.length < 2;
+  return true;
+}
+async function loadDomains(){
+  try{ return renderDomains(await (await fetch("/api/domains")).json()); }
+  catch(_){ return false; }
+}
+async function useDomain(domain){
+  stopStream();
+  state.selected.clear(); state.apps = []; state.health = {}; state.labels = {};
+  const d = await post("/api/domain", {domain});
+  if(d.error){ setStatus(d.error, "err"); return; }
+  await loadDomains();
+  await loadApps(true);
+  if(state.apps.length) setStatus(state.apps.length + " apps", "on");
+  else { setStatus("no token for " + domain, "err"); renderSvc(); }
+}
+$("#domain").onchange = e => useDomain(e.currentTarget.value);
+$("#domAdd").onclick = async () => {
+  const d = (prompt("ArgoCD domain — hostname only, no https://", "") || "").trim().toLowerCase();
+  if(!d) return;
+  const r = await post("/api/domains", {action:"add", domain:d});
+  if(r.error){ alert(r.error); return; }
+  renderDomains(r);
+  useDomain(d);
+};
+$("#domDel").onclick = async () => {
+  const d = state.active;
+  if(!confirm(`Remove ${d} from the list? Its token is dropped from memory.`)) return;
+  const r = await post("/api/domains", {action:"remove", domain:d});
+  if(r.error){ alert(r.error); return; }
+  renderDomains(r);
+  useDomain(r.active);
+};
+
+function setBusy(on){
+  const b = $("#saveTok");
+  b.disabled = on;
+  b.innerHTML = on ? '<span class="spinner"></span> connecting…' : "Connect";
+}
+
+async function connect(){
+  const token = $("#token").value.trim();
+  if(!token){ setStatus("no token","err"); return; }
+  setBusy(true);
+  setStatus("checking…","busy");
+  $("#svcList").innerHTML = '<div class="svc-empty"><span class="spinner"></span><br>loading services…</div>';
+  try{
+    const d = await post("/api/token", {token, domain: state.active});
+    if(!d.ok) throw new Error(d.error);
+    setStatus(d.count+" apps","on");
+    $("#token").value = "";
+    await loadDomains();
+    await loadApps();
+  }catch(e){
+    setStatus("rejected: "+(e.message||e),"err");
+    $("#svcList").innerHTML = '<div class="svc-empty">Connect with a token to load services.</div>';
+  }finally{ setBusy(false); }
+}
+$("#saveTok").onclick = connect;
+$("#token").addEventListener("keydown", e => { if(e.key==="Enter") connect(); });
+
+async function loadApps(quiet){
+  try{
+    const r = await fetch("/api/apps"); const d = await r.json();
+    if(d.error) throw new Error(d.error);
+    const apps = (d.apps || []).map(a => typeof a === "string" ? {name:a, health:"Unknown", sync:"Unknown"} : a)
+                               .filter(a => a && a.name);
+    state.apps = apps.map(a => a.name);
+    state.labels = computeLabels(state.apps);
+    apps.forEach(a => state.health[a.name] = a);
+    renderSvc();
+  }catch(e){ if(!quiet) throw e; }
+}
+setInterval(() => { if(state.apps.length) loadApps(true); }, HEALTH_MS);
+
+// F5 only clears the browser; the token still sits in the server's memory, so ask before nagging
+// for a fresh paste. Nothing is written to localStorage — a credential belongs on disk never.
+(async function reuseServerToken(){
+  $("#svcList").innerHTML = '<div class="svc-empty"><span class="spinner"></span><br>checking session…</div>';
+  await loadDomains();
+  await loadApps(true);
+  if(state.apps.length){
+    setStatus(state.apps.length + " apps", "on");
+    $("#token").placeholder = "token held by server — paste only to replace";
+  }else{
+    $("#svcList").innerHTML = '<div class="svc-empty">Connect with a token to load services.</div>';
+  }
+})();
+
+const MAX_STREAMS = 20;  // guardrail: opening one argocd-logs subprocess per service; hundreds = lag
+function currentList(){
+  const q = $("#svcFilter").value.toLowerCase();
+  let list = state.apps.filter(a => a.toLowerCase().includes(q));
+  if(state.starOnly) list = list.filter(a => state.starred.has(a));
+  if(state.downOnly) list = list.filter(isDown);
+  return list.sort((a,b) => (state.starred.has(b)-state.starred.has(a)) || a.localeCompare(b));
+}
+// ---- prefix tree: org-team > platform > bff > {mobile, web} ----
+// Services are grouped by their shared dash-segment prefix, so a row only has to show the tail and
+// the folder carries the context. Single-child chains collapse (org>team>platform is one
+// folder), and a node is only a folder once it holds two or more things.
+function buildTree(apps){
+  const root = {seg:"", kids:new Map(), apps:[]};
+  for(const a of apps){
+    let n = root;
+    for(const seg of a.replace(/-service$/, "").split("-")){
+      if(!n.kids.has(seg)) n.kids.set(seg, {seg, kids:new Map(), apps:[]});
+      n = n.kids.get(seg);
+    }
+    n.apps.push(a);
+  }
+  return root;
+}
+function layout(node){
+  const items = [];
+  for(let kid of node.kids.values()){
+    let segs = [kid.seg];
+    while(kid.kids.size === 1 && !kid.apps.length){        // collapse a chain of lone children
+      kid = kid.kids.values().next().value;
+      segs.push(kid.seg);
+    }
+    const name = segs.join("-");
+    const own = kid.apps.map(a => ({kind:"app", app:a, label:name}));
+    const sub = layout(kid);
+    if(own.length + sub.length >= 2) items.push({kind:"group", label:name, items:own.concat(sub)});
+    else items.push(...own, ...sub);
+  }
+  return items;
+}
+function flatApps(item){
+  return item.kind === "app" ? [item.app] : item.items.flatMap(flatApps);
+}
+// One naming rule for the sidebar and the log badges: the label is the tail below the app's folder,
+// and a tail shared by two folders grows back towards the root until it is unambiguous.
+function computeLabels(apps){
+  const rec = {};
+  (function walk(items, path){
+    for(const it of items){
+      if(it.kind === "group") walk(it.items, path.concat(it.label));
+      else rec[it.app] = {label:it.label, path};
+    }
+  })(layout(buildTree(apps)), []);
+  const seen = {};
+  Object.values(rec).forEach(r => seen[r.label] = (seen[r.label] || 0) + 1);
+  const out = {};
+  for(const a of Object.keys(rec)){
+    let {label, path} = rec[a], i = path.length;
+    while(seen[label] > 1 && i > 0) label = path[--i] + "-" + label;
+    out[a] = label;
+  }
+  const byLabel = {};
+  Object.keys(out).forEach(a => (byLabel[out[a]] = byLabel[out[a]] || []).push(a));
+  Object.values(byLabel).forEach(l => { if(l.length > 1) l.forEach(a => out[a] = a.replace(/-service$/, "")); });
+  return out;
+}
+function label(a){ return state.labels[a] || a.replace(/-service$/, ""); }
+
+function svcRow(a, text){
+  const short = text || label(a);
+  const h = healthOf(a);
+  const row = document.createElement("label"); row.className = "svc";
+  const cb = document.createElement("input"); cb.type="checkbox"; cb.checked = state.selected.has(a);
+  cb.onchange = () => { cb.checked ? state.selected.add(a) : state.selected.delete(a); restream(); };
+  const hd = document.createElement("span"); hd.className = "hdot " + h.health + (h.sync==="OutOfSync" ? " osync" : "");
+  hd.title = `${h.health} · ${h.sync}`;
+  hd.setAttribute("role","img"); hd.setAttribute("aria-label",`${h.health}, ${h.sync}`);
+  const synced = h.syncedAt ? new Date(h.syncedAt).toLocaleString() : "never";
+  const sp = document.createElement("span"); sp.className="name"; sp.textContent = short;
+  sp.title = `${a}\n${h.health} · ${h.sync}\nlast sync: ${synced}`;
+  const age = document.createElement("span"); age.className = "age";
+  age.textContent = ago(h.syncedAt); age.title = `last sync: ${synced}`;
+  const star = document.createElement("button"); star.type="button";
+  star.className = "star" + (state.starred.has(a) ? " on" : ""); star.textContent = "★";
+  star.title = "Star this service"; star.setAttribute("aria-label","Star "+short);
+  star.onclick = e => {
+    e.preventDefault(); e.stopPropagation();
+    state.starred.has(a) ? state.starred.delete(a) : state.starred.add(a);
+    saveStars(); renderSvc();
+  };
+  row.append(cb, hd, sp, age, star);
+  return row;
+}
+function grpHeader(text, members, key, manual){
+  const h = document.createElement("div"); h.className = "grp";
+  const open = !state.collapsed.has(key);
+  const tw = document.createElement("button"); tw.type="button"; tw.className="twist"; tw.textContent = open ? "▾" : "▸";
+  tw.title = open ? "Collapse" : "Expand"; tw.setAttribute("aria-expanded", String(open));
+  tw.setAttribute("aria-label", (open ? "Collapse group " : "Expand group ") + text);
+  tw.onclick = () => { open ? state.collapsed.add(key) : state.collapsed.delete(key); saveCollapsed(); renderSvc(); };
+  const cb = document.createElement("input"); cb.type="checkbox";
+  cb.checked = members.every(a => state.selected.has(a));
+  cb.title = "Select every service in this group";
+  cb.onchange = () => {
+    if(cb.checked && !canStream(state.selected.size + members.filter(a=>!state.selected.has(a)).length)){ cb.checked=false; return; }
+    members.forEach(a => cb.checked ? state.selected.add(a) : state.selected.delete(a));
+    renderSvc(); restream();
+  };
+  const down = members.filter(isDown).length;
+  const nm = document.createElement("span"); nm.className="gname";
+  nm.innerHTML = `${escapeHtml(text)} <span class="gcount">(${members.length})</span>`
+    + (down ? ` <span class="gdown">⚠${down}</span>` : "");
+  h.append(tw, cb, nm);
+  if(manual){
+    const del = document.createElement("button"); del.type="button"; del.className="gdel"; del.textContent="✕";
+    del.title = "Ungroup (services stay, group is removed)"; del.setAttribute("aria-label","Delete group "+text);
+    del.onclick = () => { delete state.groups[text]; state.collapsed.delete(key); saveGroups(); saveCollapsed(); renderSvc(); };
+    h.append(del);
+  }
+  return h;
+}
+function renderItems(el, items, path){
+  for(const it of items){
+    if(it.kind === "app"){ el.append(svcRow(it.app, it.label)); continue; }
+    const key = path + "/" + it.label;
+    el.append(grpHeader(it.label, it.items.flatMap(flatApps), key, false));
+    if(state.collapsed.has(key)) continue;
+    const branch = document.createElement("div"); branch.className = "branch";
+    renderItems(branch, it.items, key);
+    el.append(branch);
+  }
+}
+function renderSvc(){
+  const list = currentList();
+  const el = $("#svcList");
+  const down = state.apps.filter(isDown).length;
+  const db = $("#downOnly");
+  db.innerHTML = '<svg class="ico" aria-hidden="true"><use href="#i-warn"/></svg>' + (down ? " "+down : "");
+  db.setAttribute("aria-label", down ? `Show only the ${down} unhealthy services` : "Show unhealthy services only");
+  db.classList.toggle("has-down", down > 0);
+  if(!list.length){
+    el.innerHTML = state.apps.length ? '<div class="svc-empty">No services match.</div>'
+      : '<div class="svc-empty">Paste this domain\'s token to load services.</div>';
+    return;
+  }
+  el.innerHTML = "";
+  const shown = new Set(list);
+  for(const g of Object.keys(state.groups).sort()){   // hand-made groups win over the prefix tree
+    const members = state.groups[g].filter(a => shown.has(a));
+    if(!members.length) continue;
+    const key = "manual:" + g;
+    el.append(grpHeader(g, members, key, true));
+    if(state.collapsed.has(key)) continue;
+    const branch = document.createElement("div"); branch.className = "branch";
+    members.forEach(a => branch.append(svcRow(a)));
+    el.append(branch);
+  }
+  renderItems(el, layout(buildTree(list.filter(a => !groupOf(a)))), "");
+  syncOpButtons();
+}
+$("#starOnly").onclick = e => { state.starOnly=!state.starOnly; e.currentTarget.setAttribute("aria-pressed",String(state.starOnly)); renderSvc(); };
+$("#downOnly").onclick = e => { state.downOnly=!state.downOnly; e.currentTarget.setAttribute("aria-pressed",String(state.downOnly)); renderSvc(); };
+$("#grpAdd").onclick = () => {
+  const picks = [...state.selected];
+  if(!picks.length){ alert("Tick the services first, then click the folder button to move them into a group."); return; }
+  const name = (prompt("Group name (an existing name adds to that group):","") || "").trim();
+  if(!name) return;
+  for(const g of Object.keys(state.groups)){
+    state.groups[g] = state.groups[g].filter(a => !picks.includes(a));
+    if(!state.groups[g].length) delete state.groups[g];
+  }
+  state.groups[name] = [...new Set([...(state.groups[name]||[]), ...picks])];
+  saveGroups(); renderSvc();
+};
+$("#svcFilter").oninput = renderSvc;
+function canStream(n){
+  if(n <= MAX_STREAMS) return true;
+  alert(`${n} services — too many to stream at once (max ${MAX_STREAMS}). Narrow the selection first.`);
+  return false;
+}
+$("#selAll").onclick  = () => {
+  const list = currentList();
+  if(!canStream(list.length)) return;
+  list.forEach(a=>state.selected.add(a)); renderSvc(); restream();
+};
+$("#selNone").onclick = () => { state.selected.clear(); renderSvc(); restream(); };
+
+// ---- ops on the ticked services: refresh / sync / restart ----
+// refresh only re-reads state, so it goes straight through. The two that touch the cluster open a
+// modal listing the FULL app names and the domain — short labels are exactly how you restart the
+// wrong service — and restart additionally makes you type the word.
+const OPS = {
+  refresh: null,
+  sync: {title:"Sync to the cluster", what:"Applies the git state to these services.", challenge:""},
+  restart: {title:"Restart pods", what:"Restarts every Deployment of these services. In-flight requests are dropped.",
+            challenge:"restart"},
+};
+function askConfirm({title, what, apps, challenge}){
+  return new Promise(resolve => {
+    const dlg = $("#dlg"), inp = $("#dlgChallenge"), ok = $("#dlgOk");
+    $("#dlgTitle").textContent = title;
+    $("#dlgWhat").textContent = what;
+    $("#dlgDomain").textContent = state.active || "this domain";
+    const ul = $("#dlgList"); ul.innerHTML = "";
+    for(const a of apps){ const li = document.createElement("li"); li.textContent = a; ul.append(li); }
+    $("#dlgWord").textContent = challenge;
+    $("#dlgChallengeWrap").hidden = !challenge;
+    inp.value = ""; ok.disabled = !!challenge;
+    inp.oninput = () => ok.disabled = inp.value.trim() !== challenge;
+    $("#dlgCancel").onclick = () => dlg.close("cancel");
+    dlg.onclose = () => { inp.oninput = null; dlg.onclose = null; resolve(dlg.returnValue === "ok"); };
+    dlg.returnValue = "cancel";
+    dlg.showModal();
+    (challenge ? inp : ok).focus();
+  });
+}
+function opNote(app, level, text){
+  const ts = new Date().toISOString().replace("T"," ").slice(0,23);  // UTC, like the log lines
+  addLine({ app, level, ts: Date.now()/1000, line: `${ts} ${app} — ${text}` });
+}
+async function runOp(action, btn){
+  const apps = [...state.selected];
+  if(!apps.length) return;
+  const ask = OPS[action];
+  if(ask && !await askConfirm({...ask, apps})) return;
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = action + "…";
+  try{
+    const r = await fetch("/api/action",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({action, apps})});
+    const d = await r.json();
+    if(d.error) throw new Error(d.error);
+    d.results.forEach(x => opNote(x.app, x.ok ? "INFO" : "ERROR", `${action}: ${x.msg}`));
+    loadApps(true);  // health dots reflect the new state sooner than the 30s poll
+  }catch(e){
+    opNote(apps[0], "ERROR", `${action} failed: ${e.message||e}`);
+  }finally{ btn.textContent = label; syncOpButtons(); }
+}
+function syncOpButtons(){
+  const none = !state.selected.size;
+  ["opRefresh","opSync","opRestart"].forEach(id => { $("#"+id).disabled = none; });
+}
+$("#opRefresh").onclick = e => runOp("refresh", e.currentTarget);
+$("#opSync").onclick    = e => runOp("sync", e.currentTarget);
+$("#opRestart").onclick = e => runOp("restart", e.currentTarget);
+
+// ---- level + filter toolbar ----
+$("#lvl").addEventListener("click", e => {
+  const b = e.target.closest("button"); if(!b) return;
+  const lv = b.dataset.lv, on = b.getAttribute("aria-pressed")==="true";
+  b.setAttribute("aria-pressed", String(!on));
+  on ? state.levels.delete(lv) : state.levels.add(lv);
+  if(lv==="DEBUG"){ on ? state.levels.delete("TRACE") : state.levels.add("TRACE"); }
+  applyFilter();
+});
+$("#tail").onclick = e => { state.tail=!state.tail; e.target.setAttribute("aria-pressed",String(state.tail)); state.tail?restream():stopStream(); };
+$("#autoscroll").onclick = e => { state.autoscroll=!state.autoscroll; e.target.setAttribute("aria-pressed",String(state.autoscroll)); };
+$("#clear").onclick = () => { state.buf=[]; pending=[]; $("#pane").innerHTML=""; updateCount(); };
+$("#navToggle").onclick = e => {
+  const off = document.body.classList.toggle("nav-off");
+  e.currentTarget.setAttribute("aria-expanded", String(!off));
+};
+$("#grep").oninput = e => { state.grep = e.target.value.toLowerCase(); applyFilter(); };
+
+// ---- SSE stream ----
+function stopStream(){ if(state.es){ state.es.close(); state.es=null; } setStatus(state.selected.size+" selected","on"); }
+function restream(){
+  syncOpButtons();
+  stopStream();
+  if(!state.tail || !state.selected.size) return;
+  const apps = [...state.selected].join(",");
+  const es = new EventSource("/api/stream?apps="+encodeURIComponent(apps));
+  state.es = es;
+  setStatus("streaming "+state.selected.size,"on");
+  es.onmessage = ev => addLine(JSON.parse(ev.data));
+  es.onerror = () => setStatus("stream error (token expired?)","err");
+}
+
+function escapeHtml(s){ return s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+function unescapeHtml(s){ return s.replace(/&(amp|lt|gt);/g,(_,e)=>({amp:"&",lt:"<",gt:">"}[e])); }
+
+// Colorize the inner message: single-pass tokenizer so we never re-scan inserted markup.
+function colorMsg(s){
+  // No standalone-number coloring: bare digits are mostly UUID/token/masked-id fragments split by
+  // '-'/':' — coloring them just scatters yellow. Keep strings, keys, HTTP verbs, URLs.
+  const re = /("[^"]*")|(\b(?:GET|POST|PUT|DELETE|PATCH)\b)|(https?:\/\/\S+)|([\w.]+)(=)/g;
+  return s.replace(re,(m,str,http,url,key)=>{
+    if(str)  return `<span class="c-str">${str}</span>`;
+    if(http) return `<span class="c-http">${http}</span>`;
+    if(url)  return `<span class="c-url">${url}</span>`;
+    if(key)  return `<span class="c-key">${key}</span>=`;
+    return m;
+  });
+}
+function colorBrackets(brk){
+  return brk.replace(/\[([0-9a-f-]*)\]/g,(_,v)=>
+    /^[0-9a-f]{32}$/.test(v) ? `[<span class="trace" data-t="${v}">${v}</span>]`
+                             : `<span class="c-brk">[${v}]</span>`);
+}
+// FinX line: <ts> <service> [req][trace][span] LEVEL [thread] <logger> : <msg>
+// tolerant across clusters: "[req][trace][span]  INFO" and "[req][trace][span] [][]DEBUG"
+// (extra bracket groups, space between groups, level glued to bracket, padded logger).
+const FINX = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(\S+)\s+((?:\[[0-9a-fA-F-]*\]\s*)+)(ERROR|WARN|INFO|DEBUG|TRACE)\s+(\[[^\]]*\])\s+(\S+)\s+:\s?(.*)$/;
+// ---- JSON payloads (Kong access logs, request/response dumps) ----
+function tryJson(s){
+  const t = s.trim();
+  if(t.length < 2) return null;
+  const last = t[t.length-1];
+  if(!((t[0] === "{" && last === "}") || (t[0] === "[" && last === "]"))) return null;
+  try{ return JSON.parse(t); }catch(_){ return null; }
+}
+function jsonSummary(o){
+  const rq = o.request, rs = o.response;
+  if(rq && rs){  // Kong / gateway access log: the four things you actually scan for
+    const ms = o.latencies && o.latencies.request;
+    return [rq.method, rq.uri || rq.url, "→", rs.status, ms != null ? ms+"ms" : ""].filter(Boolean).join(" ");
+  }
+  const keys = Object.keys(o);
+  const head = keys.slice(0,3).map(k => {
+    const v = o[k];
+    if(v === null || typeof v !== "object") return `${k}=${String(v).slice(0,40)}`;
+    return `${k}=${Array.isArray(v) ? "["+v.length+"]" : "{…}"}`;
+  }).join("  ");
+  return head + (keys.length > 3 ? `  +${keys.length-3} more` : "");
+}
+function colorJson(pretty){
+  return escapeHtml(pretty).replace(
+    /("(?:[^"\\]|\\.)*")(\s*:)?|\b(true|false|null)\b|(-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)/gi,
+    (m, str, colon, lit, num) => {
+      if(str) return colon ? `<span class="c-key">${str}</span>${colon}` : `<span class="c-str">${str}</span>`;
+      if(lit) return `<span class="c-lit">${lit}</span>`;
+      return `<span class="c-num">${num}</span>`;
+    });
+}
+// <details> does the expand/collapse — no state to track, no listener to leak across 5000 rows
+function jsonBlock(o){
+  return `<details class="json"><summary>${escapeHtml(jsonSummary(o))}</summary>`
+       + `<pre>${colorJson(JSON.stringify(o, null, 2))}</pre></details>`;
+}
+
+// A multi-line event: only the head carries the FinX prefix, the rest is dimmed payload.
+function colorize(event){
+  const whole = tryJson(event);
+  if(whole) return jsonBlock(whole);
+  const nl = event.indexOf("\n");
+  if(nl === -1) return colorizeHead(event);
+  return colorizeHead(event.slice(0, nl)) + `<span class="cont">${escapeHtml(event.slice(nl))}</span>`;
+}
+function colorizeHead(line){
+  const e = escapeHtml(line);
+  const m = e.match(FINX);
+  if(!m) return colorMsg(e);
+  const [,ts,svc,brk,lv,thread,logger,msg] = m;
+  const payload = tryJson(unescapeHtml(msg));  // FinX line whose message is a JSON dump
+  return `<span class="c-ts">${ts}</span> <span class="c-svc">${svc}</span> `
+    + `${colorBrackets(brk)} <span class="lv ${lv}">${lv}</span> `
+    + `<span class="c-thread">${thread}</span> <span class="c-logger">${logger}</span> : `
+    + (payload ? jsonBlock(payload) : colorMsg(msg));
+}
+function rowVisible(o){
+  if(!state.levels.has(o.level)) return false;
+  if(state.grep && !(o.app+" "+o.line).toLowerCase().includes(state.grep)) return false;
+  return true;
+}
+function renderRow(o){
+  const div = document.createElement("div"); div.className = "row "+o.level; div._o = o;
+  let msg = colorize(o.line);
+  // ponytail: grep highlight runs on the colorized HTML; a query matching tag/class text could
+  // land inside markup. Fine for real queries (traceId, service, ERROR); revisit if it bites.
+  if(state.grep){ const re = new RegExp("("+state.grep.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")","ig"); msg = msg.replace(re,"<mark>$1</mark>"); }
+  div.innerHTML = `<span class="badge" title="${escapeHtml(o.app)}">${escapeHtml(label(o.app))}</span><span class="lv ${o.level}">${o.level}</span><span class="msg">${msg}</span>`;
+  return div;
+}
+// One DOM write + one scroll per frame, not per line: a busy service can push hundreds of
+// lines a second, and appending each one separately thrashes layout.
+let pending = [], frame = 0;
+function flushRows(){
+  frame = 0;
+  const pane = $("#pane");
+  if(pane.firstElementChild && pane.firstElementChild.className==="empty") pane.innerHTML="";
+  const frag = document.createDocumentFragment();
+  pending.forEach(o => frag.appendChild(renderRow(o)));
+  pending = [];
+  pane.appendChild(frag);
+  while(pane.childElementCount>state.MAX) pane.removeChild(pane.firstChild);
+  if(state.autoscroll) pane.scrollTop = pane.scrollHeight;
+  updateCount();
+}
+function addLine(o){
+  state.buf.push(o); if(state.buf.length>state.MAX) state.buf.shift();
+  if(!rowVisible(o)) { updateCount(); return; }
+  pending.push(o);
+  if(!frame) frame = requestAnimationFrame(flushRows);
+}
+function applyFilter(){
+  if(frame){ cancelAnimationFrame(frame); frame = 0; }
+  pending = [];  // buf already holds them; flushing after a rebuild would duplicate rows
+  const pane = $("#pane"); pane.innerHTML="";
+  const vis = state.buf.filter(rowVisible);
+  const frag = document.createDocumentFragment();
+  vis.forEach(o=>frag.appendChild(renderRow(o)));
+  pane.appendChild(frag);
+  if(state.autoscroll) pane.scrollTop = pane.scrollHeight;
+  updateCount();
+}
+function updateCount(){ $("#count").textContent = state.buf.length + " lines"; }
+
+// ---- copy ----
+async function copyText(t){
+  try{ await navigator.clipboard.writeText(t); return true; }
+  catch(_){
+    // clipboard API needs a secure context — falls back when opened over plain http on a LAN IP
+    const ta = document.createElement("textarea");
+    ta.value = t; ta.style.cssText = "position:fixed;top:-9999px";
+    document.body.append(ta); ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove(); return ok;
+  }
+}
+function flashBtn(btn, txt){
+  if(btn._restore) clearTimeout(btn._restore); else btn._label = btn.textContent;
+  btn.textContent = txt;
+  btn._restore = setTimeout(() => { btn.textContent = btn._label; btn._restore = 0; }, 1200);
+}
+$("#copy").onclick = async e => {
+  const btn = e.currentTarget;
+  const lines = state.buf.filter(rowVisible).map(o => o.line);
+  if(!lines.length){ flashBtn(btn, "nothing"); return; }
+  flashBtn(btn, await copyText(lines.join("\n")) ? `copied ${lines.length}` : "copy failed");
+};
+$("#pane").addEventListener("dblclick", async e => {
+  const row = e.target.closest(".row");
+  if(!row || !row._o) return;
+  if(!await copyText(row._o.line)) return;
+  getSelection().removeAllRanges();  // dblclick selects the word under the cursor; drop it
+  row.classList.add("copied");
+  setTimeout(() => row.classList.remove("copied"), 700);
+});
+
+// click traceId → filter to that trace
+$("#pane").addEventListener("click", e => {
+  const t = e.target.closest(".trace"); if(!t) return;
+  $("#grep").value = t.dataset.t; state.grep = t.dataset.t.toLowerCase(); applyFilter();
+});
+</script>
+</body>
+</html>
