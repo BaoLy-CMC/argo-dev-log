@@ -4,6 +4,8 @@ Multi-service live log viewer for ArgoCD dev clusters. Streams `argocd app logs`
 straight into the browser over SSE, merged and time-sorted, with service health, prefix folders,
 JSON folding, and restart/sync/refresh from the sidebar.
 
+![DevLogs UI — dark theme](docs/screenshot-dark.png)
+
 Stdlib Python + one HTML file. No Loki, no docker, no npm, no pip install. Tokens live in the
 backend's memory only — never written to disk, never logged.
 
@@ -33,6 +35,13 @@ Then in the UI:
 3. Live logs stream in the middle — level filter, text/traceId filter, click a traceId to isolate a flow.
 
 The header button toggles the light and dark theme; it follows your OS on first run.
+
+![Light theme](docs/screenshot-light.png)
+
+Click a traceId to isolate one flow across every selected service; JSON payloads (Kong access logs,
+request/response dumps) fold to a one-line summary and expand on click.
+
+![Filtered by traceId, JSON payload expanded](docs/screenshot-trace.png)
 
 ## Domains
 Several ArgoCD servers, one token each. The header picker shows `●` when the backend holds a token
@@ -82,6 +91,7 @@ showed, so a reconnect prints only what actually happened. The "stream dropped, 
 is skipped when nothing was received since the previous one.
 
 ## Files
+- docs/       README screenshots.
 - test_server.py  `python3 test_server.py` — self-check for line joining, actions and domains.
 - .devlogs-domains.json  the domain list written by the +/- buttons (hostnames only, no tokens).
 - server.py   stdlib-only backend: /api/token, /api/apps, /api/stream (SSE), serves index.html.
