@@ -128,6 +128,24 @@ def test_token_is_per_domain():
     assert server.active_token() == "", "a domain must not inherit another domain's token"
 
 
+def test_pod_counts_parse_and_reject_bad_names():
+    tree = {"nodes": [{"kind": "Pod", "health": {"status": "Healthy"}},
+                      {"kind": "Pod", "health": {"status": "Degraded"}},
+                      {"kind": "Deployment", "health": {"status": "Healthy"}}]}
+    asked = []
+
+    def fake(app):
+        asked.append(app)
+        pods = [n for n in tree["nodes"] if n["kind"] == "Pod"]
+        return {"ready": sum(1 for n in pods if n["health"]["status"] == "Healthy"),
+                "total": len(pods)}
+
+    server._safe_pod_count = fake
+    out = server.pod_counts(["real-service", "real-service", "../../evil", "UPPER"])
+    assert out == {"real-service": {"ready": 1, "total": 2}}, out
+    assert asked == ["real-service"], "a name that is not a plain app name must never reach the API"
+
+
 if __name__ == "__main__":
     test_continuation_lines_join_one_event()
     test_runaway_dump_is_capped()
@@ -139,5 +157,6 @@ if __name__ == "__main__":
     test_orphan_continuation_survives_alone()
     test_domain_list_validation()
     test_token_is_per_domain()
-    test_action_argv_and_whitelist()  # last: it monkeypatches module globals
+    test_action_argv_and_whitelist()  # last two: they monkeypatch module globals
+    test_pod_counts_parse_and_reject_bad_names()
     print("ok")

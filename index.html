@@ -58,10 +58,17 @@
   .dot.on{background:var(--accent);box-shadow:0 0 8px var(--accent)}
   .dot.err{background:var(--err);box-shadow:0 0 8px var(--err)}
   .spacer{flex:1}
-  input[type=password],input[type=text]{
+  input[type=password],input[type=text],input[type=search]{
     background:var(--card2);border:1px solid var(--border);color:var(--fg);
     padding:7px 10px;border-radius:var(--radius);min-width:0;
   }
+  /* the native clear button is the whole point of type=search, but it ships black-on-dark */
+  input[type=search]::-webkit-search-cancel-button{
+    -webkit-appearance:none;appearance:none;height:12px;width:12px;cursor:pointer;
+    background:var(--muted);
+    mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 2l8 8M10 2l-8 8' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat;
+  }
+  input[type=search]:hover::-webkit-search-cancel-button{background:var(--fg)}
   input::placeholder{color:var(--muted)}
   .btn{
     background:var(--card2);border:1px solid var(--border);color:var(--fg);
@@ -82,13 +89,14 @@
 
   main{flex:1;display:flex;min-height:0}
   aside{
-    width:300px;flex:0 0 300px;background:var(--card);border-right:1px solid var(--border);
+    width:360px;min-width:260px;max-width:640px;resize:horizontal;overflow:hidden;
+    background:var(--card);border-right:1px solid var(--border);
     display:flex;flex-direction:column;min-height:0;
   }
   aside .head{padding:var(--sp3) var(--sp4);border-bottom:1px solid var(--border);display:flex;gap:var(--sp2);align-items:center}
   aside .head input{flex:1}
   .svc-actions{display:flex;gap:var(--sp2);padding:var(--sp2) var(--sp4);border-bottom:1px solid var(--border)}
-  .svc-actions .btn{padding:6px 8px;font-size:12px;flex:1;min-height:30px;display:flex;align-items:center;justify-content:center;gap:4px}
+  .svc-actions .btn{padding:6px 8px;font-size:12px;flex:1;white-space:nowrap;min-height:30px;display:flex;align-items:center;justify-content:center;gap:4px}
   .svc-list{overflow:auto;flex:1;padding:var(--sp2)}
   .svc{display:flex;align-items:center;gap:var(--sp2);padding:6px 8px;border-radius:6px;cursor:pointer;min-height:30px}
   .svc:hover{background:var(--card2)}
@@ -101,7 +109,13 @@
   .svc:hover .star,.star:focus-visible,.star.on{opacity:1}   /* one control less to look at */
   .star:hover{color:var(--warn)}
   .star.on{color:var(--warn)}
-  .age{color:var(--muted);font-size:12px;flex:0 0 auto;font-variant-numeric:tabular-nums;opacity:.75}
+  .star.mute.on{color:var(--muted);opacity:1}
+  .pods{color:var(--muted);font-size:11px;flex:0 0 auto;font-variant-numeric:tabular-nums;opacity:.8;
+    min-width:30px;text-align:right}
+  .pods.bad{color:var(--err);opacity:1}   /* the health dot already alarms — no second pill */
+  .pods.unk{opacity:.45}
+  .age{color:var(--muted);font-size:12px;flex:0 0 auto;font-variant-numeric:tabular-nums;opacity:.75;
+    min-width:28px;text-align:right}
   .ico{width:14px;height:14px;flex:0 0 14px;fill:none;vertical-align:-2px}
   #starOnly[aria-pressed=true]{color:var(--warn);border-color:var(--warn)}
   #downOnly[aria-pressed=true],#downOnly.has-down{color:var(--err);border-color:var(--err)}
@@ -120,7 +134,9 @@
 
   .grp{display:flex;align-items:center;gap:var(--sp2);padding:5px 8px;border-radius:6px;margin-top:var(--sp2)}
   .grp:hover{background:var(--card2)}
-  .branch{margin-left:11px;padding-left:5px;border-left:1px solid var(--border)}
+  .grp:hover .star,.grp .star.on{opacity:1}
+  .branch{margin-left:11px;padding-left:5px;border-left:2px solid var(--gc,var(--border))}
+  .gdot{flex:0 0 8px;width:8px;height:8px;border-radius:2px;background:var(--gc,var(--border))}
   .grp input{accent-color:var(--accent);width:15px;height:15px;cursor:pointer}
   .twist{background:none;border:none;color:var(--muted);font-size:11px;
     width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 24px}
@@ -155,11 +171,15 @@
   .btn.primary .spinner{border-color:var(--spin-track);border-top-color:var(--accent-fg)}
   .dot.busy{background:var(--ring);animation:pulse 1s ease-in-out infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;
+      transition-duration:.01ms !important;scroll-behavior:auto !important}
+  }
   @keyframes pulse{50%{opacity:.25}}
 
   section.logs{flex:1;display:flex;flex-direction:column;min-width:0}
   .toolbar{display:flex;gap:var(--sp2);align-items:center;padding:var(--sp2) var(--sp4);border-bottom:1px solid var(--border);background:var(--card2);flex-wrap:wrap}
-  .toolbar input[type=text]{flex:1;min-width:160px}
+  .toolbar input[type=search]{flex:1;min-width:160px}
   .lvl{display:flex;gap:2px}
   .lvl .btn{padding:6px 9px;font-size:12px}
   .count{color:var(--muted);font-size:12px;white-space:nowrap}
@@ -170,12 +190,14 @@
   .row.ERROR{border-left-color:var(--err)}
   .row.WARN{border-left-color:var(--warn)}
   /* fixed width so the level and message columns line up across services */
-  .badge{flex:0 0 14ch;color:var(--accent);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ts{flex:0 0 12ch;color:var(--muted);opacity:.7;font-variant-numeric:tabular-nums}
+  .badge{flex:0 0 15ch;color:var(--accent);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sdot{display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:6px}
   .lv{flex:0 0 46px;text-align:right;font-weight:700}
   .lv.ERROR{color:var(--err)} .lv.WARN{color:var(--warn)} .lv.INFO{color:var(--info)}
   .lv.DEBUG{color:var(--debug)} .lv.TRACE{color:var(--trace)}
   .msg{flex:1;min-width:0;overflow-wrap:anywhere}
-  .msg .trace{color:var(--info);cursor:pointer;text-decoration:underline dotted}
+  .msg .trace,.trace{color:var(--info);cursor:pointer;text-decoration:underline dotted}
   .msg .cont{color:var(--muted)}
   .msg mark{background:var(--mark-bg);color:var(--mark-fg);border-radius:2px}
   details.json>summary{cursor:pointer;color:var(--c-svc);list-style:none}
@@ -196,6 +218,7 @@
   .c-http{color:var(--c-http);font-weight:700}
   .c-url{color:var(--c-url);text-decoration:underline dotted}
   .empty{color:var(--muted);text-align:center;padding:48px 16px;line-height:1.8}
+  .empty .hint{font-size:12px;opacity:.75}
   #navToggle{display:none}
   @media (max-width:720px){
     #navToggle{display:inline-block}
@@ -244,9 +267,9 @@
 </dialog>
 <main>
   <aside>
-    <div class="head"><input type="text" id="svcFilter" placeholder="filter services…" aria-label="Filter services"></div>
+    <div class="head"><input type="search" id="svcFilter" placeholder="filter services…" aria-label="Filter services"></div>
     <div class="svc-actions">
-      <button class="btn" id="selAll" title="Select all services matching the current filter">all shown</button>
+      <button class="btn" id="selAll" title="Select all services matching the current filter">all</button>
       <button class="btn" id="selNone">none</button>
       <button class="btn" id="starOnly" aria-pressed="false" aria-label="Show starred services only" title="Show starred only">★</button>
       <button class="btn" id="downOnly" aria-pressed="false" aria-label="Show unhealthy services only" title="Show unhealthy services only"><svg class="ico" aria-hidden="true"><use href="#i-warn"/></svg></button>
@@ -268,24 +291,29 @@
         <button class="btn" data-lv="INFO" aria-pressed="true">INFO</button>
         <button class="btn" data-lv="DEBUG" aria-pressed="true">DBG</button>
       </div>
-      <input type="text" id="grep" placeholder="filter text / traceId…" aria-label="Filter log text">
+      <input type="search" id="grep" placeholder="filter text / traceId…" aria-label="Filter log text">
       <button class="btn" id="autoscroll" aria-pressed="true">⤓ auto</button>
+      <button class="btn" id="raw" aria-pressed="false" title="Show the untouched log line instead of the compact view">raw</button>
       <button class="btn" id="copy" title="Copy every line currently shown (level + text filters applied)">copy</button>
       <button class="btn" id="clear">clear</button>
       <span class="count" id="count">0 lines</span>
     </div>
-    <div class="pane" id="pane"><div class="empty">Pick services on the left. Live logs stream here,<br>merged and time-sorted across services.</div></div>
+    <div class="pane" id="pane"><div class="empty">Pick services on the left. Live logs stream here,<br>merged and time-sorted across services.
+      <br><span class="hint">double-click a line to copy it · click a traceId to isolate that flow</span></div></div>
   </section>
 </main>
 <script>
 const $ = s => document.querySelector(s);
 const state = { apps:[], health:{}, selected:new Set(), levels:new Set(["ERROR","WARN","INFO","DEBUG","TRACE"]),
-  tail:true, autoscroll:true, grep:"", es:null, buf:[], MAX:5000,
+  tail:true, autoscroll:true, raw:false, grep:"", es:null, buf:[], MAX:5000,
   labels:{}, domains:[], active:"", starred:new Set(JSON.parse(localStorage.getItem("devlogs.starred")||"[]")), starOnly:false, downOnly:false,
   groups:JSON.parse(localStorage.getItem("devlogs.groups")||"{}"),
-  collapsed:new Set(JSON.parse(localStorage.getItem("devlogs.collapsed")||"[]")) };
+  pods:{},
+  muted:new Set(JSON.parse(localStorage.getItem("devlogs.muted")||"[]")),
+  collapsed:new Set(JSON.parse(localStorage.getItem("devlogs.collapsed")||'["muted"]')) };
 function saveStars(){ localStorage.setItem("devlogs.starred", JSON.stringify([...state.starred])); }
 function saveGroups(){ localStorage.setItem("devlogs.groups", JSON.stringify(state.groups)); }
+function saveMuted(){ localStorage.setItem("devlogs.muted", JSON.stringify([...state.muted])); }
 function saveCollapsed(){ localStorage.setItem("devlogs.collapsed", JSON.stringify([...state.collapsed])); }
 const HEALTH_MS = 30000;
 
@@ -415,7 +443,52 @@ async function loadApps(quiet){
     renderSvc();
   }catch(e){ if(!quiet) throw e; }
 }
-setInterval(() => { if(state.apps.length) loadApps(true); }, HEALTH_MS);
+// ---- pod counts: one resource-tree call per app, so only ask for the rows on screen ----
+// 500 apps in one batch is 500 HTTPS calls against a shared ArgoCD; the sidebar only ever shows
+// ~30 rows, so an IntersectionObserver keeps each refresh to one small batch.
+const podEls = new Map();        // app -> the badge span of its current row
+let podSeen = new Set();         // apps in (or near) the viewport right now
+let podQueue = new Set(), podTimer = null;
+const podObserver = new IntersectionObserver(entries => {
+  let ask = false;
+  for(const e of entries){
+    const a = e.target.dataset.app;
+    if(!e.isIntersecting){ podSeen.delete(a); continue; }
+    podSeen.add(a);
+    if(!state.pods[a]){ podQueue.add(a); ask = true; }
+  }
+  if(ask) schedulePods();
+}, {root:document.querySelector("#svcList"), rootMargin:"200px"});
+
+function schedulePods(){ clearTimeout(podTimer); podTimer = setTimeout(flushPods, 200); }
+async function flushPods(){
+  const list = [...podQueue].slice(0, 80); podQueue.clear();
+  if(!list.length) return;
+  try{
+    const r = await fetch("/api/pods?apps=" + encodeURIComponent(list.join(",")));
+    const d = await r.json();
+    list.forEach(a => state.pods[a] = (d.pods || {})[a] || {err:"no answer from the server"});
+  }catch(e){
+    list.forEach(a => state.pods[a] = {err:e.message||String(e)});
+  }
+  paintPods();
+}
+function paintPod(a, el){
+  const p = state.pods[a];
+  const known = p && !p.err && p.total;
+  el.hidden = !p || (!p.err && !p.total);   // a config-only app has no pods: that is not a problem
+  el.className = "pods" + (p && p.err ? " unk" : known && p.ready < p.total ? " bad" : "");
+  el.textContent = p && p.err ? "?" : known ? `${p.ready}/${p.total}` : "";
+  const say = !p || el.hidden ? "" : p.err ? "pod count unavailable: " + p.err
+                                          : `${p.ready} of ${p.total} pods ready`;
+  el.title = say; el.setAttribute("aria-label", say);
+}
+function paintPods(){ podEls.forEach((el, a) => paintPod(a, el)); }
+setInterval(() => {
+  if(!state.apps.length) return;
+  loadApps(true);
+  podQueue = new Set(podSeen); schedulePods();
+}, HEALTH_MS);
 
 // F5 only clears the browser; the token still sits in the server's memory, so ask before nagging
 // for a fresh paste. Nothing is written to localStorage — a credential belongs on disk never.
@@ -511,6 +584,10 @@ function svcRow(a, text){
   const synced = h.syncedAt ? new Date(h.syncedAt).toLocaleString() : "never";
   const sp = document.createElement("span"); sp.className="name"; sp.textContent = short;
   sp.title = `${a}\n${h.health} · ${h.sync}\nlast sync: ${synced}`;
+  const pods = document.createElement("span"); pods.className = "pods"; pods.hidden = true;
+  pods.setAttribute("role","img");
+  podEls.set(a, pods); paintPod(a, pods);
+  row.dataset.app = a; podObserver.observe(row);
   const age = document.createElement("span"); age.className = "age";
   age.textContent = ago(h.syncedAt); age.title = `last sync: ${synced}`;
   const star = document.createElement("button"); star.type="button";
@@ -521,11 +598,29 @@ function svcRow(a, text){
     state.starred.has(a) ? state.starred.delete(a) : state.starred.add(a);
     saveStars(); renderSvc();
   };
-  row.append(cb, hd, sp, age, star);
+  const mute = document.createElement("button"); mute.type="button";
+  mute.className = "star mute" + (state.muted.has(a) ? " on" : ""); mute.textContent = "\u2298";
+  mute.title = state.muted.has(a) ? "Unmute this service" : "Mute: move to the muted folder at the bottom";
+  mute.setAttribute("aria-label", (state.muted.has(a) ? "Unmute " : "Mute ") + short);
+  mute.onclick = e => {
+    e.preventDefault(); e.stopPropagation();
+    state.muted.has(a) ? state.muted.delete(a) : state.muted.add(a);
+    saveMuted(); renderSvc();
+  };
+  row.append(cb, hd, sp, pods, age, star, mute);
   return row;
+}
+// Cool hues only — red/amber/green belong to the health dots, and a red folder next to a red
+// "Degraded" dot reads as an alarm. Borders and dots only: colour never carries meaning alone.
+const GRP_COLORS = ["#0EA5E9","#6366F1","#8B5CF6","#A855F7","#D946EF","#14B8A6","#3B82F6"];
+function grpHue(name){
+  let n = 0;
+  for(const c of name) n = (n * 31 + c.charCodeAt(0)) % 9973;
+  return GRP_COLORS[n % GRP_COLORS.length];
 }
 function grpHeader(text, members, key, manual){
   const h = document.createElement("div"); h.className = "grp";
+  h.style.setProperty("--gc", text === "muted" ? "var(--border)" : grpHue(text));
   const open = !state.collapsed.has(key);
   const tw = document.createElement("button"); tw.type="button"; tw.className="twist"; tw.textContent = open ? "▾" : "▸";
   tw.title = open ? "Collapse" : "Expand"; tw.setAttribute("aria-expanded", String(open));
@@ -540,10 +635,20 @@ function grpHeader(text, members, key, manual){
     renderSvc(); restream();
   };
   const down = members.filter(isDown).length;
+  const dot = document.createElement("span"); dot.className="gdot"; dot.setAttribute("aria-hidden","true");
   const nm = document.createElement("span"); nm.className="gname";
   nm.innerHTML = `${escapeHtml(text)} <span class="gcount">(${members.length})</span>`
     + (down ? ` <span class="gdown">⚠${down}</span>` : "");
-  h.append(tw, cb, nm);
+  const allMuted = members.every(a => state.muted.has(a));
+  const mute = document.createElement("button"); mute.type="button";
+  mute.className = "star mute" + (allMuted ? " on" : ""); mute.textContent = "\u2298";
+  mute.title = allMuted ? "Unmute every service in this group" : "Mute every service in this group";
+  mute.setAttribute("aria-label", (allMuted ? "Unmute group " : "Mute group ") + text);
+  mute.onclick = () => {
+    members.forEach(a => allMuted ? state.muted.delete(a) : state.muted.add(a));
+    saveMuted(); renderSvc();
+  };
+  h.append(tw, cb, dot, nm, mute);
   if(manual){
     const del = document.createElement("button"); del.type="button"; del.className="gdel"; del.textContent="✕";
     del.title = "Ungroup (services stay, group is removed)"; del.setAttribute("aria-label","Delete group "+text);
@@ -559,14 +664,15 @@ function renderItems(el, items, path){
     el.append(grpHeader(it.label, it.items.flatMap(flatApps), key, false));
     if(state.collapsed.has(key)) continue;
     const branch = document.createElement("div"); branch.className = "branch";
+    branch.style.setProperty("--gc", grpHue(it.label));
     renderItems(branch, it.items, key);
     el.append(branch);
   }
 }
 function renderSvc(){
-  const list = currentList();
+  let list = currentList();
   const el = $("#svcList");
-  const down = state.apps.filter(isDown).length;
+  const down = state.apps.filter(a => isDown(a) && !state.muted.has(a)).length;
   const db = $("#downOnly");
   db.innerHTML = '<svg class="ico" aria-hidden="true"><use href="#i-warn"/></svg>' + (down ? " "+down : "");
   db.setAttribute("aria-label", down ? `Show only the ${down} unhealthy services` : "Show unhealthy services only");
@@ -577,6 +683,9 @@ function renderSvc(){
     return;
   }
   el.innerHTML = "";
+  podObserver.disconnect(); podEls.clear();
+  const muted = list.filter(a => state.muted.has(a));
+  list = list.filter(a => !state.muted.has(a));
   const shown = new Set(list);
   for(const g of Object.keys(state.groups).sort()){   // hand-made groups win over the prefix tree
     const members = state.groups[g].filter(a => shown.has(a));
@@ -585,10 +694,19 @@ function renderSvc(){
     el.append(grpHeader(g, members, key, true));
     if(state.collapsed.has(key)) continue;
     const branch = document.createElement("div"); branch.className = "branch";
+    branch.style.setProperty("--gc", grpHue(g));
     members.forEach(a => branch.append(svcRow(a)));
     el.append(branch);
   }
   renderItems(el, layout(buildTree(list.filter(a => !groupOf(a)))), "");
+  if(muted.length){
+    el.append(grpHeader("muted", muted, "muted", false));
+    if(!state.collapsed.has("muted")){
+      const branch = document.createElement("div"); branch.className = "branch";
+      muted.forEach(a => branch.append(svcRow(a)));
+      el.append(branch);
+    }
+  }
   syncOpButtons();
 }
 $("#starOnly").onclick = e => { state.starOnly=!state.starOnly; e.currentTarget.setAttribute("aria-pressed",String(state.starOnly)); renderSvc(); };
@@ -605,14 +723,31 @@ $("#grpAdd").onclick = () => {
   state.groups[name] = [...new Set([...(state.groups[name]||[]), ...picks])];
   saveGroups(); renderSvc();
 };
+$("#raw").onclick = e => {
+  state.raw = !state.raw;
+  e.currentTarget.setAttribute("aria-pressed", String(state.raw));
+  applyFilter();
+};
 $("#svcFilter").oninput = renderSvc;
+
+// the sidebar is drag-resizable; remembering the width is the whole point of dragging it
+(function keepAsideWidth(){
+  const aside = document.querySelector("aside");
+  const saved = localStorage.getItem("devlogs.aside");
+  if(saved) aside.style.width = saved;
+  let t = 0;
+  new ResizeObserver(() => {
+    clearTimeout(t);
+    t = setTimeout(() => localStorage.setItem("devlogs.aside", aside.style.width || aside.offsetWidth + "px"), 400);
+  }).observe(aside);
+})();
 function canStream(n){
   if(n <= MAX_STREAMS) return true;
   alert(`${n} services — too many to stream at once (max ${MAX_STREAMS}). Narrow the selection first.`);
   return false;
 }
 $("#selAll").onclick  = () => {
-  const list = currentList();
+  const list = currentList().filter(a => !state.muted.has(a));
   if(!canStream(list.length)) return;
   list.forEach(a=>state.selected.add(a)); renderSvc(); restream();
 };
@@ -734,6 +869,28 @@ function colorBrackets(brk){
 // tolerant across clusters: "[req][trace][span]  INFO" and "[req][trace][span] [][]DEBUG"
 // (extra bracket groups, space between groups, level glued to bracket, padded logger).
 const FINX = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(\S+)\s+((?:\[[0-9a-fA-F-]*\]\s*)+)(ERROR|WARN|INFO|DEBUG|TRACE)\s+(\[[^\]]*\])\s+(\S+)\s+:\s?(.*)$/;
+// The bracketed format the vikki clusters emit:
+//   [2026-09-08 03:52:29:305] [DEBUG ] [account-service,requestID=,traceID=<hex>,spanID=<hex>]
+//   [DEBUG] [reactor-http-epoll-3] com.finx.account.service.AccountService:684 - <message>
+// ~140 characters of prefix before the sentence you actually came to read. Everything in it is
+// either already a column (time, level, service) or noise (the repeated level, empty ids), so the
+// compact view keeps the trace id and the short logger and drops the rest. `raw` brings it back.
+const BRACKETED = new RegExp(
+  "^\\[\\d{4}-\\d{2}-\\d{2} (\\d{2}:\\d{2}:\\d{2})[.:](\\d{3})\\]\\s*" +
+  "\\[(?:ERROR|WARN|INFO|DEBUG|TRACE)\\s*\\]\\s*\\[([^\\]]*)\\]\\s*" +
+  "(?:\\[(?:ERROR|WARN|INFO|DEBUG|TRACE)\\s*\\]\\s*)?\\[([^\\]]*)\\]\\s*" +
+  "(\\S+?)\\s+-\\s+([\\s\\S]*)$");
+function colorizeBracketed(line){
+  const m = line.match(BRACKETED);
+  if(!m) return null;
+  const [, , , ctx, , logger, msg] = m;
+  const trace = (ctx.match(/traceI[dD]=([0-9a-fA-F]+)/) || [])[1] || "";
+  const short = logger.replace(/^(?:[a-z0-9_]+\.)+/, "");
+  return `<span class="c-logger" title="${escapeHtml(logger)}">${escapeHtml(short)}</span>`
+    + (trace ? ` <span class="trace" data-t="${trace}" title="${trace}">${trace.slice(0, 8)}</span>` : "")
+    + ` ${colorMsg(escapeHtml(msg))}`;
+}
+
 // ---- JSON payloads (Kong access logs, request/response dumps) ----
 function tryJson(s){
   const t = s.trim();
@@ -780,6 +937,7 @@ function colorize(event){
   return colorizeHead(event.slice(0, nl)) + `<span class="cont">${escapeHtml(event.slice(nl))}</span>`;
 }
 function colorizeHead(line){
+  if(!state.raw){ const b = colorizeBracketed(line); if(b) return b; }
   const e = escapeHtml(line);
   const m = e.match(FINX);
   if(!m) return colorMsg(e);
@@ -789,6 +947,10 @@ function colorizeHead(line){
     + `${colorBrackets(brk)} <span class="lv ${lv}">${lv}</span> `
     + `<span class="c-thread">${thread}</span> <span class="c-logger">${logger}</span> : `
     + (payload ? jsonBlock(payload) : colorMsg(msg));
+}
+function clock(ts){
+  const d = new Date(ts * 1000);
+  return d.toTimeString().slice(0, 8) + "." + String(d.getMilliseconds()).padStart(3, "0");
 }
 function rowVisible(o){
   if(!state.levels.has(o.level)) return false;
@@ -801,7 +963,9 @@ function renderRow(o){
   // ponytail: grep highlight runs on the colorized HTML; a query matching tag/class text could
   // land inside markup. Fine for real queries (traceId, service, ERROR); revisit if it bites.
   if(state.grep){ const re = new RegExp("("+state.grep.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")","ig"); msg = msg.replace(re,"<mark>$1</mark>"); }
-  div.innerHTML = `<span class="badge" title="${escapeHtml(o.app)}">${escapeHtml(label(o.app))}</span><span class="lv ${o.level}">${o.level}</span><span class="msg">${msg}</span>`;
+  div.innerHTML = `<span class="ts">${clock(o.ts)}</span>`
+    + `<span class="badge" title="${escapeHtml(o.app)}">`
+    + `<span class="sdot" style="background:${grpHue(o.app)}"></span>${escapeHtml(label(o.app))}</span><span class="lv ${o.level}">${o.level}</span><span class="msg">${msg}</span>`;
   return div;
 }
 // One DOM write + one scroll per frame, not per line: a busy service can push hundreds of

@@ -18,7 +18,10 @@ import shutil
 import subprocess
 import threading
 import time
+import urllib.error
+import urllib.request
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
@@ -124,6 +127,53 @@ def list_apps() -> list:
                          or st.get("reconciledAt") or ""),
         })
     return sorted([a for a in apps if a["name"]], key=lambda a: a["name"])
+
+
+APP_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9.-]{0,62}$")  # goes into a URL path — keep it a plain name
+POD_TTL = 20  # seconds: the sidebar re-asks every 30s, so a short cache still spares ArgoCD a round
+MAX_POD_APPS = 80
+_pods = {}  # (domain, app) -> (fetched_at, {"ready": n, "total": n})
+
+
+def _pod_count(app: str) -> dict:
+    """ready/total pods from the app's resource tree. The CLI has no resource-tree command, so this
+    is the one place that talks to the ArgoCD REST API directly."""
+    domain = _conf["active"]
+    hit = _pods.get((domain, app))
+    if hit and time.time() - hit[0] < POD_TTL:
+        return hit[1]
+    req = urllib.request.Request(
+        f"https://{domain}/api/v1/applications/{app}/resource-tree",
+        headers={"Authorization": "Bearer " + active_token()})
+    with urllib.request.urlopen(req, timeout=15) as r:
+        tree = json.load(r)
+    pods = [n for n in (tree.get("nodes") or []) if n.get("kind") == "Pod"]
+    out = {"ready": sum(1 for n in pods if (n.get("health") or {}).get("status") == "Healthy"),
+           "total": len(pods)}
+    _pods[(domain, app)] = (time.time(), out)
+    return out
+
+
+def pod_counts(apps: list) -> dict:
+    """Pod counts for the services the sidebar currently shows. Every requested app gets an answer,
+    a count or an {"err"}: a badge that silently vanishes is indistinguishable from a bug."""
+    apps = [a for a in dict.fromkeys(apps) if APP_NAME_RE.match(a)]
+    over, apps = apps[MAX_POD_APPS:], apps[:MAX_POD_APPS]
+    got = {}
+    if apps:
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            got = dict(ex.map(lambda a: (a, _safe_pod_count(a)), apps))
+    got.update({a: {"err": f"over the {MAX_POD_APPS}-app batch limit"} for a in over})
+    return got
+
+
+def _safe_pod_count(app: str) -> dict:
+    try:
+        return _pod_count(app)
+    except urllib.error.HTTPError as e:
+        return {"err": f"HTTP {e.code} from resource-tree"}
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        return {"err": type(e).__name__}
 
 
 ACTIONS = {  # fixed argv per action: the app name is the only variable, and it is whitelisted below
@@ -376,6 +426,13 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, {"apps": list_apps()})
             except Exception as e:  # noqa: BLE001
                 self._send(400, {"error": str(e)})
+            return
+        if u.path == "/api/pods":
+            if not active_token():
+                self._send(401, {"error": "no token"})
+                return
+            apps = [a for a in parse_qs(u.query).get("apps", [""])[0].split(",") if a]
+            self._send(200, {"pods": pod_counts(apps)})
             return
         if u.path == "/api/stream":
             self._stream(parse_qs(u.query).get("apps", [""])[0])

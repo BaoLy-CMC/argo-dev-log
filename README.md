@@ -31,8 +31,10 @@ Optional per-machine settings, e.g. in `~/.argocd-env` (sourced by `run.sh` if p
 
 Then in the UI:
 1. Pick the domain in the header, paste its `argocd.token` cookie -> **Connect**.
-2. Tick services on the left (filter box, folders, stars, all/none).
-3. Live logs stream in the middle — level filter, text/traceId filter, click a traceId to isolate a flow.
+2. Tick services on the left (filter box, folders, stars, all/none). ⊘ mutes a service: it drops into a collapsed **muted** folder at the bottom and stops counting towards the unhealthy badge.
+3. Each row shows its pod count (`ready/total`, red when a pod is short; nothing at all for a config-only app with no pods) and each folder gets a stable colour on its dot and branch line. Counts are fetched only for the rows on screen — drag the sidebar's right edge to widen it.
+4. Live logs stream in the middle — level filter, text/traceId filter, click a traceId to isolate a flow, double-click a line to copy it.
+5. Lines are shown compact: one time column, the short logger and the traceId, without the ~140 characters of repeated prefix the clusters emit. **raw** in the toolbar shows the untouched line.
 
 The header button toggles the light and dark theme; it follows your OS on first run.
 
