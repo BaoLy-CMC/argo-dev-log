@@ -9,30 +9,38 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
 <style>
   :root{
+    /* Chrome is indigo and status is colour. The accent used to be the same green as "Healthy",
+       so every button and focus ring read like a status; and ten syntax hues plus seven folder
+       hues plus five levels put about twenty colours on one screen. Green now means one thing. */
     --bg:#0F172A; --card:#1B2336; --card2:#141B2D; --fg:#F8FAFC; --muted:#94A3B8;
-    --border:#334155; --accent:#22C55E; --accent-fg:#0F172A; --ring:#38BDF8;
-    /* debug/trace lifted to >=4.5:1 on --bg; the old #64748B/#475569 read at 3.8:1 / 2.4:1 */
-    --err:#EF4444; --warn:#F59E0B; --info:#38BDF8; --debug:#8595AD; --trace:#7A8AA3;
+    --border:#334155; --accent:#818CF8; --accent-fg:#0F172A; --ring:#A5B4FC;
+    --ok:#22C55E;  /* healthy, approved, success — nothing else */
+    /* INFO is the default level, not a signal: it recedes, and ERROR/WARN are the only loud ones.
+       debug/trace stay as measured, both >=4.5:1 on --bg. */
+    --err:#F87171; --warn:#F59E0B; --info:#B6C2D6; --debug:#96A6BE; --trace:#8290A8;
     --icon:#62748F;  /* idle icon buttons — 3.3:1 on --card, the non-text UI minimum */
-    --hover-bg:#20293d; --hover-bd:#3f4d68; --sel-bg:#182a20; --copied-bg:#16371F;
+    --hover-bg:#20293d; --hover-bd:#3f4d68; --sel-bg:#1B2038; --copied-bg:#16371F;
     --mark-bg:#F59E0B; --mark-fg:#000; --backdrop:rgba(2,6,23,.72);
     --danger-fg:#FCA5A5; --danger-bd:#7F1D1D; --danger-bg:#3B1213;
-    --c-svc:#5EEAD4; --c-brk:#64748B; --c-thread:#A78BFA; --c-logger:#38BDF8; --c-key:#F59E0B;
-    --c-str:#86EFAC; --c-http:#F472B6; --c-url:#93C5FD; --c-lit:#C084FC; --c-num:#FBBF24;
+    /* the log body keeps two greys, one amber for k=v, and the accent for links */
+    --c-svc:#E2E8F0; --c-brk:#8290A8; --c-thread:#8290A8; --c-logger:#9DB2D0; --c-key:#D9A544;
+    --c-str:#A9B6C9; --c-http:#818CF8; --c-url:#A5B4FC; --c-lit:#A5B4CB; --c-num:#C9B98A;
+    /* every text colour above is >=4.5:1 on --bg, --card AND --card2, not just on --bg */
     --spin-track:rgba(15,23,42,.35);
     --sp1:4px; --sp2:8px; --sp3:12px; --sp4:16px; --radius:8px;
   }
   /* Light theme. Every text colour re-checked to 4.5:1 on its own background, icons to 3:1. */
   body.light{
     --bg:#F8FAFC; --card:#FFFFFF; --card2:#F1F5F9; --fg:#0F172A; --muted:#55627A;
-    --border:#CBD5E1; --accent:#15803D; --accent-fg:#FFFFFF; --ring:#0369A1;
-    --err:#B91C1C; --warn:#B45309; --info:#0369A1; --debug:#576378; --trace:#6B7280;
+    --border:#CBD5E1; --accent:#4338CA; --accent-fg:#FFFFFF; --ring:#4338CA;
+    --ok:#15803D;
+    --err:#B91C1C; --warn:#B45309; --info:#475569; --debug:#576378; --trace:#5B6673;
     --icon:#64748B;
-    --hover-bg:#E9EEF5; --hover-bd:#94A3B8; --sel-bg:#DCFCE7; --copied-bg:#DCFCE7;
+    --hover-bg:#E9EEF5; --hover-bd:#94A3B8; --sel-bg:#E4E7FB; --copied-bg:#DCFCE7;
     --mark-bg:#FDE68A; --mark-fg:#0F172A; --backdrop:rgba(15,23,42,.4);
     --danger-fg:#B91C1C; --danger-bd:#FCA5A5; --danger-bg:#FEE2E2;
-    --c-svc:#0F766E; --c-brk:#576378; --c-thread:#6D28D9; --c-logger:#0369A1; --c-key:#B45309;
-    --c-str:#15803D; --c-http:#BE185D; --c-url:#1D4ED8; --c-lit:#7E22CE; --c-num:#A16207;
+    --c-svc:#1E293B; --c-brk:#576378; --c-thread:#5B6673; --c-logger:#47618A; --c-key:#B45309;
+    --c-str:#475569; --c-http:#4338CA; --c-url:#4338CA; --c-lit:#475569; --c-num:#7A6427;
     --spin-track:rgba(255,255,255,.45);
   }
   *{box-sizing:border-box}
@@ -55,7 +63,7 @@
   .brand{font-weight:700;letter-spacing:.5px}
   .brand b{color:var(--accent)}
   .dot{width:9px;height:9px;border-radius:50%;background:var(--debug);display:inline-block;margin-right:6px}
-  .dot.on{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+  .dot.on{background:var(--ok);box-shadow:0 0 8px var(--ok)}
   .dot.err{background:var(--err);box-shadow:0 0 8px var(--err)}
   .spacer{flex:1}
   input[type=password],input[type=text],input[type=search]{
@@ -96,17 +104,24 @@
   aside .head{padding:var(--sp3) var(--sp4);border-bottom:1px solid var(--border);display:flex;gap:var(--sp2);align-items:center}
   aside .head input{flex:1}
   .svc-actions{display:flex;gap:var(--sp2);padding:var(--sp2) var(--sp4);border-bottom:1px solid var(--border)}
+  .svc-actions[hidden]{display:none}   /* a class rule outranks the UA's [hidden] */
   .svc-actions .btn{padding:6px 8px;font-size:12px;flex:1;white-space:nowrap;min-height:30px;display:flex;align-items:center;justify-content:center;gap:4px}
   .svc-list{overflow:auto;flex:1;padding:var(--sp2)}
-  .svc{display:flex;align-items:center;gap:var(--sp2);padding:6px 8px;border-radius:6px;cursor:pointer;min-height:30px}
+  .svc{display:flex;align-items:center;gap:var(--sp2);padding:6px 8px;border-radius:6px;cursor:pointer;
+    min-height:30px;position:relative}
   .svc:hover{background:var(--card2)}
   .svc:has(input:checked){background:var(--sel-bg)}
   .svc:has(input:checked) .name{color:var(--accent)}
   .svc input{accent-color:var(--accent);width:15px;height:15px;cursor:pointer}
   .svc .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .star{background:none;border:none;color:var(--icon);font-size:15px;line-height:1;opacity:0;
+  .star{background:none;border:none;color:var(--icon);font-size:15px;line-height:1;
     width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 24px}
-  .svc:hover .star,.star:focus-visible,.star.on{opacity:1}   /* one control less to look at */
+  /* the star and the mute button used to hold 48px on every row, which is exactly the width the
+     service names were missing. They float over the row instead, on hover or keyboard focus. */
+  .svc .tools{position:absolute;right:6px;top:2px;display:none;gap:2px;border-radius:6px;
+    background:var(--card2);box-shadow:0 0 0 4px var(--card2)}
+  .svc:hover .tools,.svc:focus-within .tools{display:flex}
+  .svc .starred{color:var(--warn);font-size:11px;flex:0 0 auto}
   .star:hover{color:var(--warn)}
   .star.on{color:var(--warn)}
   .star.mute.on{color:var(--muted);opacity:1}
@@ -124,17 +139,64 @@
   /* shape carries the state as well as colour — colour alone fails WCAG 1.4.1 and colour-blind eyes:
      ● healthy  ○ progressing  ■ degraded  □ missing  ▬ suspended  ◌ unknown */
   .hdot{flex:0 0 9px;width:9px;height:9px;border-radius:50%;border:2px solid transparent;background:var(--debug)}
-  .hdot.Healthy{background:var(--accent)}
-  .hdot.Progressing{background:none;border-color:var(--info)}
+  .hdot.Healthy{background:var(--ok)}
+  .hdot.Progressing{background:none;border-color:var(--accent)}
   .hdot.Degraded{background:var(--err);border-radius:1px;box-shadow:0 0 6px var(--err)}
   .hdot.Missing{background:none;border-color:var(--warn);border-radius:1px}
   .hdot.Suspended{background:var(--trace);height:3px;border-radius:1px}
   .hdot.Unknown{background:none;border-color:var(--debug)}
   .hdot.osync{outline:2px dotted var(--warn);outline-offset:2px}
+  button.hdot{padding:0;cursor:pointer}
+  button.hdot.why:hover,button.hdot.why:focus-visible{outline:2px solid var(--err);outline-offset:3px}
+  #diagPane{padding:var(--sp3) var(--sp4)}
+  .dg-head{display:flex;align-items:center;gap:var(--sp2);margin-bottom:var(--sp3);flex-wrap:wrap}
+  .dg-app{font-weight:700}
+  .dg-pod{border:1px solid var(--border);border-radius:var(--radius);background:var(--card);
+    padding:var(--sp3);margin-bottom:var(--sp3)}
+  .dg-name{font-weight:700;word-break:break-all}
+  .dg-msg{color:var(--err);font-size:12px;margin:2px 0}
+  .dg-info{color:var(--muted);font-size:12px;display:flex;gap:var(--sp3);flex-wrap:wrap}
+  .dg-ev{font-size:12px;padding:2px 0;display:flex;gap:var(--sp2)}
+  .dg-ev .r{flex:0 0 16ch;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dg-ev.Warning .r{color:var(--warn)}
+  .dg-ev .m{flex:1;min-width:0;color:var(--muted);overflow-wrap:anywhere}
+  .dg-log{margin:var(--sp2) 0 0;padding:8px 10px;background:var(--card2);border-radius:6px;
+    max-height:38vh;overflow:auto;white-space:pre-wrap;font-size:12px}
+  .dg-sub{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+    font-weight:700;margin:var(--sp2) 0 2px}
+  .dg-row{display:flex;align-items:center;gap:var(--sp2);width:100%;text-align:left;
+    background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+    color:var(--fg);font-family:inherit;font-size:13px;padding:8px 10px;margin-bottom:4px;cursor:pointer}
+  .dg-row:hover{background:var(--card2);border-color:var(--hover-bd)}
+  .dg-rname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  #prPane{padding:var(--sp2) var(--sp4)}
+  .pr{display:flex;align-items:center;gap:var(--sp2);padding:6px 4px;border-bottom:1px solid var(--border);font-size:13px}
+  .pr:hover{background:var(--card2)}
+  .pr input{accent-color:var(--accent);width:15px;height:15px;cursor:pointer;flex:0 0 auto}
+  /* every fixed column steals from the title, and the title is the only part that says what the
+     pull request does. Ratios, not fixed widths, and the pill/size stay unshrinkable. */
+  .pr .ref{flex:0 1 24ch;min-width:10ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pr .ttl{flex:2 1 16ch;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+  .pr .who{flex:0 1 12ch;min-width:0;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pr .size{flex:0 0 auto;text-align:right;font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .pr .pill{flex:0 0 auto}
+  .pr .btn{flex:0 0 auto;padding:2px 7px;font-size:11px;min-height:0}
+  .pr .size .a{color:var(--ok)} .pr .size .d{color:var(--err)}
+  .pr .big{font-weight:700}
+  .pill.REVIEW_REQUIRED{color:var(--warn);border-color:var(--warn)}
+  .pill.APPROVED{color:var(--ok);border-color:var(--ok)}
+  .pill.CHANGES_REQUESTED{color:var(--err);border-color:var(--err)}
+  .pr-out{margin:var(--sp2) 0;padding:8px 10px;background:var(--card2);border-radius:6px;
+    white-space:pre-wrap;font-size:12px;max-height:40vh;overflow:auto}
+  /* in a narrow window the author and the age squeeze the title down to nothing; they are the
+     two columns you can lose without losing the point of the row */
+  @media (max-width:1240px){ .pr .who,.pr .age{display:none} }
 
   .grp{display:flex;align-items:center;gap:var(--sp2);padding:5px 8px;border-radius:6px;margin-top:var(--sp2)}
   .grp:hover{background:var(--card2)}
-  .grp:hover .star,.grp .star.on{opacity:1}
+  .grp .star{opacity:0}
+  .grp:hover .star,.grp .star:focus-visible,.grp .star.on{opacity:1}
   .branch{margin-left:11px;padding-left:5px;border-left:2px solid var(--gc,var(--border))}
   .gdot{flex:0 0 8px;width:8px;height:8px;border-radius:2px;background:var(--gc,var(--border))}
   .grp input{accent-color:var(--accent);width:15px;height:15px;cursor:pointer}
@@ -178,11 +240,24 @@
   @keyframes pulse{50%{opacity:.25}}
 
   section.logs{flex:1;display:flex;flex-direction:column;min-width:0}
+  /* two rows by concern: where you are, then what you do to the stream. One row wrapped into
+     three as soon as the sidebar was widened. */
+  .tabs{display:flex;gap:var(--sp2);align-items:center;padding:0 var(--sp4);background:var(--card2);
+    border-bottom:1px solid var(--border)}
+  .tab{background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);
+    font-family:inherit;font-size:13px;padding:9px 10px;cursor:pointer;white-space:nowrap}
+  .tab:hover{color:var(--fg)}
+  .tab[aria-selected=true]{color:var(--fg);border-bottom-color:var(--accent)}
+  .tab-n{color:var(--err);font-weight:700}
   .toolbar{display:flex;gap:var(--sp2);align-items:center;padding:var(--sp2) var(--sp4);border-bottom:1px solid var(--border);background:var(--card2);flex-wrap:wrap}
+  .toolbar[hidden],.count[hidden]{display:none}   /* same trap as .svc-actions: the class wins */
   .toolbar input[type=search]{flex:1;min-width:160px}
   .lvl{display:flex;gap:2px}
   .lvl .btn{padding:6px 9px;font-size:12px}
   .count{color:var(--muted);font-size:12px;white-space:nowrap}
+  .tok-exp{font-size:12px;color:var(--muted);white-space:nowrap}
+  .tok-exp.soon{color:var(--warn)}
+  .tok-exp.gone{color:var(--err);font-weight:700}
   .pane{flex:1;overflow:auto;padding:var(--sp2) 0;background:var(--bg)}
   .row{display:flex;gap:var(--sp3);padding:2px var(--sp4);white-space:pre-wrap;word-break:break-word;border-left:3px solid transparent}
   .row:hover{background:var(--card2)}
@@ -191,13 +266,13 @@
   .row.WARN{border-left-color:var(--warn)}
   /* fixed width so the level and message columns line up across services */
   .ts{flex:0 0 12ch;color:var(--muted);opacity:.7;font-variant-numeric:tabular-nums}
-  .badge{flex:0 0 15ch;color:var(--accent);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .badge{flex:0 0 15ch;color:var(--c-svc);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .sdot{display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:6px}
   .lv{flex:0 0 46px;text-align:right;font-weight:700}
   .lv.ERROR{color:var(--err)} .lv.WARN{color:var(--warn)} .lv.INFO{color:var(--info)}
   .lv.DEBUG{color:var(--debug)} .lv.TRACE{color:var(--trace)}
   .msg{flex:1;min-width:0;overflow-wrap:anywhere}
-  .msg .trace,.trace{color:var(--info);cursor:pointer;text-decoration:underline dotted}
+  .msg .trace,.trace{color:var(--accent);cursor:pointer;text-decoration:underline dotted}
   .msg .cont{color:var(--muted)}
   .msg mark{background:var(--mark-bg);color:var(--mark-fg);border-radius:2px}
   details.json>summary{cursor:pointer;color:var(--c-svc);list-style:none}
@@ -218,6 +293,29 @@
   .c-http{color:var(--c-http);font-weight:700}
   .c-url{color:var(--c-url);text-decoration:underline dotted}
   .empty{color:var(--muted);text-align:center;padding:48px 16px;line-height:1.8}
+  #ciPane{padding:var(--sp3) var(--sp4)}
+  .ci-card{border:1px solid var(--border);border-radius:var(--radius);background:var(--card);
+    padding:var(--sp3);margin-bottom:var(--sp3)}
+  .ci-head{display:flex;align-items:center;gap:var(--sp2);flex-wrap:wrap;margin-bottom:var(--sp2)}
+  .ci-app{font-weight:700}
+  .ci-repo{color:var(--muted);font-size:12px}
+  a.ci-repo{text-decoration:underline dotted}
+  .ci-wf a.btn{text-decoration:none;padding:2px 7px;font-size:11px}
+  .ci-wf .btn{padding:2px 7px;font-size:11px;min-height:0}
+  .ci-wf{display:flex;align-items:center;gap:var(--sp2);flex-wrap:wrap;padding:3px 0;font-size:12px}
+  .ci-wf .name{flex:0 1 12ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ci-sha{color:var(--accent);text-decoration:underline dotted}
+  .ci-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+  .ci-broke{color:var(--err);font-size:12px;padding:2px 0 2px 14ch}
+  .ci-wl{margin-top:var(--sp2);padding-top:var(--sp2);border-top:1px dashed var(--border)}
+  .ci-log{margin:var(--sp2) 0 0;padding:8px 10px;background:var(--card2);border-radius:6px;
+    max-height:40vh;overflow:auto;white-space:pre-wrap;font-size:12px}
+  .pill{padding:1px 7px;border-radius:999px;border:1px solid var(--border);font-size:11px;font-weight:700}
+  .pill.success{color:var(--ok);border-color:var(--ok)}
+  .pill.failure,.pill.startup_failure,.pill.timed_out{color:var(--err);border-color:var(--err)}
+  .pill.in_progress,.pill.queued,.pill.pending{color:var(--accent);border-color:var(--accent)}
+  .ci-pick{display:flex;gap:var(--sp2);align-items:center;font-size:12px}
+  .ci-pick select{flex:1;min-width:0}
   .empty .hint{font-size:12px;opacity:.75}
   #navToggle{display:none}
   @media (max-width:720px){
@@ -242,6 +340,7 @@
   <button class="btn" id="navToggle" aria-label="Show or hide the service list" aria-expanded="false"><svg class="ico" aria-hidden="true"><use href="#i-menu"/></svg></button>
   <div class="brand">Dev<b>Logs</b></div>
   <span><span class="dot" id="dot"></span><span id="status" role="status" aria-live="polite">no token</span></span>
+  <span class="tok-exp" id="tokExp" hidden></span>
   <div class="spacer"></div>
   <select id="domain" aria-label="ArgoCD domain" title="ArgoCD server — each domain keeps its own token"></select>
   <button class="btn ibtn" id="domAdd" aria-label="Add an ArgoCD domain" title="Add a domain">+</button>
@@ -249,7 +348,6 @@
   <input type="password" id="token" placeholder="paste argocd.token cookie…" style="width:260px" autocomplete="off" aria-label="ArgoCD token">
   <button class="btn primary" id="saveTok">Connect</button>
   <button class="btn ibtn" id="theme" aria-label="Switch between the dark and light theme" title="Theme"></button>
-  <a class="btn" id="bmk" href="#" title="Drag to bookmarks bar; click while on the ArgoCD tab to grab the token"><svg class="ico" aria-hidden="true"><use href="#i-bookmark"/></svg> grab-token</a>
 </header>
 <dialog id="dlg" aria-labelledby="dlgTitle">
   <form method="dialog">
@@ -275,7 +373,7 @@
       <button class="btn" id="downOnly" aria-pressed="false" aria-label="Show unhealthy services only" title="Show unhealthy services only"><svg class="ico" aria-hidden="true"><use href="#i-warn"/></svg></button>
       <button class="btn" id="grpAdd" aria-label="Move the ticked services into a group" title="Move the ticked services into a group"><svg class="ico" aria-hidden="true"><use href="#i-folder"/></svg></button>
     </div>
-    <div class="svc-actions ops">
+    <div class="svc-actions ops" id="ops" hidden>
       <button class="btn" id="opRefresh" disabled title="argocd app get --refresh: re-read git and cluster state, changes nothing">refresh</button>
       <button class="btn" id="opSync" disabled title="argocd app sync --async: apply the git state to the cluster">sync</button>
       <button class="btn danger" id="opRestart" disabled title="argocd app actions run restart: restart the pods of every Deployment">restart</button>
@@ -283,7 +381,18 @@
     <div class="svc-list" id="svcList"><div class="svc-empty">Connect with a token to load services.</div></div>
   </aside>
   <section class="logs">
-    <div class="toolbar">
+    <div class="tabs" role="tablist" aria-label="Right hand panel">
+      <button class="tab" id="tabLogs" role="tab" aria-selected="true" aria-controls="pane">logs</button>
+      <button class="tab" id="tabCi" role="tab" aria-selected="false" aria-controls="ciPane"
+        title="GitHub Actions of the ticked services">ci</button>
+      <button class="tab" id="tabHealth" role="tab" aria-selected="false" aria-controls="diagPane"
+        title="Events and pod logs of the unhealthy services">health <span class="tab-n" id="tabHealthN"></span></button>
+      <button class="tab" id="tabPrs" role="tab" aria-selected="false" aria-controls="prPane"
+        title="Open pull requests: review, approve or merge in bulk">prs</button>
+      <div class="spacer"></div>
+      <span class="count" id="count">0 lines</span>
+    </div>
+    <div class="toolbar" id="logTools">
       <button class="btn" id="tail" aria-pressed="true">▶ tail</button>
       <div class="lvl" id="lvl">
         <button class="btn" data-lv="ERROR" aria-pressed="true">ERR</button>
@@ -296,8 +405,18 @@
       <button class="btn" id="raw" aria-pressed="false" title="Show the untouched log line instead of the compact view">raw</button>
       <button class="btn" id="copy" title="Copy every line currently shown (level + text filters applied)">copy</button>
       <button class="btn" id="clear">clear</button>
-      <span class="count" id="count">0 lines</span>
     </div>
+    <div class="pane" id="ciPane" hidden></div>
+    <div class="pane" id="diagPane" hidden></div>
+    <div class="toolbar" id="prTools" hidden>
+      <input type="search" id="prQ" placeholder="GitHub search: org:X is:pr is:open…" aria-label="Pull request search">
+      <button class="btn" id="prMine" title="Pull requests you opened">mine</button>
+      <button class="btn" id="prForMe" title="Pull requests waiting for your review">for me</button>
+      <button class="btn" id="prApprove" disabled>approve</button>
+      <button class="btn danger" id="prMerge" disabled>merge</button>
+      <span class="count" id="prCount"></span>
+    </div>
+    <div class="pane" id="prPane" hidden></div>
     <div class="pane" id="pane"><div class="empty">Pick services on the left. Live logs stream here,<br>merged and time-sorted across services.
       <br><span class="hint">double-click a line to copy it · click a traceId to isolate that flow</span></div></div>
   </section>
@@ -305,10 +424,10 @@
 <script>
 const $ = s => document.querySelector(s);
 const state = { apps:[], health:{}, selected:new Set(), levels:new Set(["ERROR","WARN","INFO","DEBUG","TRACE"]),
-  tail:true, autoscroll:true, raw:false, grep:"", es:null, buf:[], MAX:5000,
-  labels:{}, domains:[], active:"", starred:new Set(JSON.parse(localStorage.getItem("devlogs.starred")||"[]")), starOnly:false, downOnly:false,
+  tail:true, autoscroll:true, raw:false, tokenExp:0, cliSession:false, grep:"", es:null, buf:[], MAX:5000,
+  labels:{}, domains:[], active:"", pane:"logs", prs:[], prTotal:0, prPick:new Set(), starred:new Set(JSON.parse(localStorage.getItem("devlogs.starred")||"[]")), starOnly:false, downOnly:false,
   groups:JSON.parse(localStorage.getItem("devlogs.groups")||"{}"),
-  pods:{},
+  pods:{}, ci:{}, ciBusy:new Set(), ciTab:false, repos:{org:"",map:{},repos:[],suggested:{}},
   muted:new Set(JSON.parse(localStorage.getItem("devlogs.muted")||"[]")),
   collapsed:new Set(JSON.parse(localStorage.getItem("devlogs.collapsed")||'["muted"]')) };
 function saveStars(){ localStorage.setItem("devlogs.starred", JSON.stringify([...state.starred])); }
@@ -330,9 +449,6 @@ function ago(iso){
 function isDown(a){ const h = healthOf(a).health; return h !== "Healthy" && h !== "Unknown"; }
 function groupOf(a){ for(const g in state.groups) if(state.groups[g].includes(a)) return g; return null; }
 
-// ---- bookmarklet: run on the ArgoCD tab, POST token to this UI ----
-const BM = `javascript:(()=>{const m=document.cookie.match(/argocd\\.token=([^;]+)/);if(!m){alert('argocd.token not found in document.cookie (likely HttpOnly). Copy it from DevTools > Application > Cookies instead.');return;}fetch('http://localhost:${location.port||8900}/api/token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:decodeURIComponent(m[1])})}).then(r=>r.json()).then(d=>alert(d.ok?('Token sent. '+d.count+' apps visible.'):('Rejected: '+d.error))).catch(e=>alert('POST failed: '+e));})()`;
-$("#bmk").setAttribute("href", BM);
 
 // ---- theme ----
 function applyTheme(light){
@@ -370,8 +486,26 @@ function renderDomains(d){
     sel.append(o);
   }
   $("#domDel").disabled = d.domains.length < 2;
+  const act = d.domains.find(x => x.domain === d.active) || {};
+  state.tokenExp = act.exp || 0;
+  state.cliSession = !!act.cliSession;
+  paintExpiry();
   return true;
 }
+// An expired token makes ArgoCD answer "invalid session: failed to verify the token", which reads
+// like a bug in this app. Say what it really is, and say it before it happens.
+function paintExpiry(){
+  const el = $("#tokExp");
+  if(!state.tokenExp){ el.hidden = true; return; }
+  const left = state.tokenExp * 1000 - Date.now();
+  el.hidden = false;
+  el.className = "tok-exp" + (left <= 0 ? " gone" : left < 15 * 60000 ? " soon" : "");
+  const mins = Math.round(Math.abs(left) / 60000);
+  const span = mins >= 60 ? Math.floor(mins / 60) + "h" + String(mins % 60).padStart(2, "0") : mins + "m";
+  el.textContent = left <= 0 ? `token expired ${span} ago — paste a new one` : `token ${span} left`;
+  el.title = "From the token's own exp claim: " + new Date(state.tokenExp * 1000).toLocaleString();
+}
+setInterval(paintExpiry, 30000);
 async function loadDomains(){
   try{ return renderDomains(await (await fetch("/api/domains")).json()); }
   catch(_){ return false; }
@@ -419,7 +553,7 @@ async function connect(){
   try{
     const d = await post("/api/token", {token, domain: state.active});
     if(!d.ok) throw new Error(d.error);
-    setStatus(d.count+" apps","on");
+    setStatus(d.user ? "connected as " + d.user : "connected", "on");
     $("#token").value = "";
     await loadDomains();
     await loadApps();
@@ -578,9 +712,18 @@ function svcRow(a, text){
   const row = document.createElement("label"); row.className = "svc";
   const cb = document.createElement("input"); cb.type="checkbox"; cb.checked = state.selected.has(a);
   cb.onchange = () => { cb.checked ? state.selected.add(a) : state.selected.delete(a); restream(); };
-  const hd = document.createElement("span"); hd.className = "hdot " + h.health + (h.sync==="OutOfSync" ? " osync" : "");
-  hd.title = `${h.health} · ${h.sync}`;
-  hd.setAttribute("role","img"); hd.setAttribute("aria-label",`${h.health}, ${h.sync}`);
+  const bad = isDown(a);
+  const hd = document.createElement(bad ? "button" : "span");
+  hd.className = "hdot " + h.health + (h.sync==="OutOfSync" ? " osync" : "") + (bad ? " why" : "");
+  hd.title = bad ? `${h.health} · ${h.sync} — click for events and the failing pod's log`
+                 : `${h.health} · ${h.sync}`;
+  if(bad){
+    hd.type = "button";
+    hd.setAttribute("aria-label", `${h.health}, ${h.sync}. Diagnose ${short}`);
+    hd.onclick = e => { e.preventDefault(); e.stopPropagation(); showDiag(a); };
+  }else{
+    hd.setAttribute("role","img"); hd.setAttribute("aria-label",`${h.health}, ${h.sync}`);
+  }
   const synced = h.syncedAt ? new Date(h.syncedAt).toLocaleString() : "never";
   const sp = document.createElement("span"); sp.className="name"; sp.textContent = short;
   sp.title = `${a}\n${h.health} · ${h.sync}\nlast sync: ${synced}`;
@@ -592,6 +735,7 @@ function svcRow(a, text){
   age.textContent = ago(h.syncedAt); age.title = `last sync: ${synced}`;
   const star = document.createElement("button"); star.type="button";
   star.className = "star" + (state.starred.has(a) ? " on" : ""); star.textContent = "★";
+  star.setAttribute("aria-pressed", String(state.starred.has(a)));
   star.title = "Star this service"; star.setAttribute("aria-label","Star "+short);
   star.onclick = e => {
     e.preventDefault(); e.stopPropagation();
@@ -607,7 +751,14 @@ function svcRow(a, text){
     state.muted.has(a) ? state.muted.delete(a) : state.muted.add(a);
     saveMuted(); renderSvc();
   };
-  row.append(cb, hd, sp, pods, age, star, mute);
+  const tools = document.createElement("span"); tools.className = "tools";
+  tools.append(star, mute);
+  row.append(cb, hd, sp, pods, age, tools);
+  if(state.starred.has(a)){
+    const mark = document.createElement("span"); mark.className = "starred";
+    mark.textContent = "★"; mark.setAttribute("aria-hidden", "true");
+    row.insertBefore(mark, pods);
+  }
   return row;
 }
 // Cool hues only — red/amber/green belong to the health dots, and a red folder next to a red
@@ -677,6 +828,7 @@ function renderSvc(){
   db.innerHTML = '<svg class="ico" aria-hidden="true"><use href="#i-warn"/></svg>' + (down ? " "+down : "");
   db.setAttribute("aria-label", down ? `Show only the ${down} unhealthy services` : "Show unhealthy services only");
   db.classList.toggle("has-down", down > 0);
+  paintHealthCount();
   if(!list.length){
     el.innerHTML = state.apps.length ? '<div class="svc-empty">No services match.</div>'
       : '<div class="svc-empty">Paste this domain\'s token to load services.</div>';
@@ -723,12 +875,26 @@ $("#grpAdd").onclick = () => {
   state.groups[name] = [...new Set([...(state.groups[name]||[]), ...picks])];
   saveGroups(); renderSvc();
 };
+$("#tabLogs").onclick = () => showPane("logs");
+$("#tabCi").onclick = () => { showPane("ci"); loadCi(); };
+$("#tabHealth").onclick = () => showHealth();
 $("#raw").onclick = e => {
   state.raw = !state.raw;
   e.currentTarget.setAttribute("aria-pressed", String(state.raw));
   applyFilter();
 };
 $("#svcFilter").oninput = renderSvc;
+// 494 rows and no way in without a mouse: "/" focuses the filter, Escape empties it
+addEventListener("keydown", e => {
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target.tagName || "")) || e.target.isContentEditable;
+  if(e.key === "/" && !typing && !e.ctrlKey && !e.metaKey){
+    e.preventDefault(); $("#svcFilter").focus(); $("#svcFilter").select();
+    return;
+  }
+  if(e.key === "Escape" && (e.target === $("#svcFilter") || e.target === $("#grep")) && e.target.value){
+    e.target.value = ""; e.target.dispatchEvent(new Event("input"));
+  }
+});
 
 // the sidebar is drag-resizable; remembering the width is the whole point of dragging it
 (function keepAsideWidth(){
@@ -805,6 +971,7 @@ async function runOp(action, btn){
   }finally{ btn.textContent = label; syncOpButtons(); }
 }
 function syncOpButtons(){
+  $("#ops").hidden = !state.selected.size;
   const none = !state.selected.size;
   ["opRefresh","opSync","opRestart"].forEach(id => { $("#"+id).disabled = none; });
 }
@@ -834,6 +1001,7 @@ $("#grep").oninput = e => { state.grep = e.target.value.toLowerCase(); applyFilt
 function stopStream(){ if(state.es){ state.es.close(); state.es=null; } setStatus(state.selected.size+" selected","on"); }
 function restream(){
   syncOpButtons();
+  if(state.ciTab) loadCi();
   stopStream();
   if(!state.tail || !state.selected.size) return;
   const apps = [...state.selected].join(",");
@@ -844,7 +1012,7 @@ function restream(){
   es.onerror = () => setStatus("stream error (token expired?)","err");
 }
 
-function escapeHtml(s){ return s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+function escapeHtml(s){ return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
 function unescapeHtml(s){ return s.replace(/&(amp|lt|gt);/g,(_,e)=>({amp:"&",lt:"<",gt:">"}[e])); }
 
 // Colorize the inner message: single-pass tokenizer so we never re-scan inserted markup.
@@ -1001,6 +1169,355 @@ function applyFilter(){
   updateCount();
 }
 function updateCount(){ $("#count").textContent = state.buf.length + " lines"; }
+
+// ---- why is this service red: app conditions, the unhealthy pods, their events and last log ----
+function showPane(which){
+  state.pane = which;
+  $("#pane").hidden = which !== "logs";
+  $("#ciPane").hidden = which !== "ci";
+  $("#diagPane").hidden = which !== "diag";
+  $("#prPane").hidden = which !== "prs";
+  $("#logTools").hidden = which !== "logs";   // level filters and grep only mean anything for logs
+  $("#count").hidden = which !== "logs";
+  $("#prTools").hidden = which !== "prs";
+  state.ciTab = which === "ci";
+  for(const [id, name] of [["#tabLogs","logs"],["#tabCi","ci"],["#tabHealth","diag"],["#tabPrs","prs"]])
+    $(id).setAttribute("aria-selected", String(which === name));
+}
+
+// ---- pull requests: the inbox, then approve/merge through the same scripts as the shell ----
+async function loadPrs(){
+  showPane("prs");
+  $("#prPane").innerHTML = '<div class="empty"><span class="spinner"></span><br>asking GitHub…</div>';
+  try{
+    const q = $("#prQ").value.trim();
+    const r = await fetch("/api/prs" + (q ? "?q=" + encodeURIComponent(q) : ""));
+    const d = await r.json();
+    if(d.error) throw new Error(d.error);
+    state.prs = d.prs || [];
+    state.prTotal = d.total || 0;
+    renderPrs();
+  }catch(e){ $("#prPane").innerHTML = `<div class="empty">${escapeHtml(e.message || e)}</div>`; }
+}
+function renderPrs(){
+  const el = $("#prPane");
+  if(!state.prs.length){ el.innerHTML = '<div class="empty">No pull request matches.</div>'; return; }
+  el.innerHTML = state.prs.map(p => {
+    const ref = `${p.repo}#${p.number}`;
+    // a four figure diff is not reviewable in a batch, and saying so is cheaper than regretting it
+    const big = p.adds + p.dels > 1000;
+    return `<div class="pr" data-ref="${escapeHtml(ref)}">`
+      + `<input type="checkbox" aria-label="Select ${escapeHtml(ref)}"${state.prPick.has(ref) ? " checked" : ""}>`
+      + `<span class="pill ${escapeHtml(p.decision || "REVIEW_REQUIRED")}">${escapeHtml((p.decision || "no review").toLowerCase().replace(/_/g, " "))}</span>`
+      + `<a class="ref" href="${escapeHtml(p.url)}" target="_blank" rel="noreferrer">${escapeHtml(ref)}</a>`
+      + `<span class="ttl">${p.draft ? "[draft] " : ""}${escapeHtml(p.title)}</span>`
+      + `<span class="who">${escapeHtml(p.author)}</span>`
+      + `<span class="size${big ? " big" : ""}"><span class="a">+${p.adds}</span>/<span class="d">-${p.dels}</span> f${p.files}</span>`
+      + `<span class="age">${escapeHtml(ago(p.at))}</span>`
+      + `<button class="btn" data-review="${escapeHtml(ref)}" title="Send this diff to the local claude CLI for review">claude</button>`
+      + `</div>`;
+  }).join("");
+  paintPrCount();
+}
+function paintPrCount(){
+  const n = state.prPick.size;
+  $("#prCount").textContent = `${state.prs.length} of ${state.prTotal}${n ? ` · ${n} picked` : ""}`;
+  $("#prApprove").disabled = !n; $("#prMerge").disabled = !n;
+  $("#prApprove").textContent = n ? `approve ${n}` : "approve";
+  $("#prMerge").textContent = n ? `merge ${n}` : "merge";
+}
+$("#prPane").addEventListener("change", e => {
+  const row = e.target.closest(".pr[data-ref]");
+  if(!row || e.target.type !== "checkbox") return;
+  e.target.checked ? state.prPick.add(row.dataset.ref) : state.prPick.delete(row.dataset.ref);
+  paintPrCount();
+});
+$("#prPane").addEventListener("click", async e => {
+  const btn = e.target.closest("button[data-review]");
+  if(!btn) return;
+  const [repo, number] = btn.dataset.review.split("#");
+  const box = document.createElement("pre"); box.className = "pr-out";
+  box.textContent = "claude is reading the diff… (a big PR takes a while)";
+  btn.closest(".pr").after(box);
+  flashBtn(btn, "…");
+  try{
+    const d = await post("/api/pr-review", {repo, number});
+    box.textContent = d.error ? "failed: " + d.error
+      : (d.review || "(no output)") + (d.truncated ? "\n\n[diff truncated before the review]" : "");
+  }catch(err){ box.textContent = "failed: " + (err.message || err); }
+});
+// Two phases on purpose: the dry-run tells you what the tools would do — including which PRs the
+// merge tool refuses and why — and only then is there something worth confirming.
+async function runPrAction(action){
+  const refs = [...state.prPick];
+  if(!refs.length) return;
+  const plan = await post("/api/pr-plan", {action, refs, method:"squash"});
+  if(plan.error){ alert(plan.error); return; }
+  const lines = ((plan.err || "") + "\n" + (plan.out || "")).split("\n")
+    .map(l => l.trim()).filter(l => l && !/^\[\d+\/\d+\] \S+ \.\.\.$/.test(l));
+  const ok = await askConfirm({
+    title: action === "approve" ? "Approve these pull requests" : "Merge these pull requests",
+    what: action === "approve"
+      ? "Adds your approval to every pull request listed below, under your GitHub account."
+      : "Squash-merges the ones the merge tool reports as ready. It refuses the rest.",
+    apps: lines, challenge: refs.length > 3 ? action : ""});
+  if(!ok) return;
+  const box = document.createElement("pre"); box.className = "pr-out";
+  box.textContent = action + " running…";
+  $("#prPane").prepend(box);
+  const d = await post("/api/pr-run", {action, refs, method:"squash"});
+  box.textContent = d.error ? "failed: " + d.error : ((d.out || "") + "\n" + (d.err || "")).trim();
+  state.prPick.clear();
+  loadPrs();
+}
+$("#tabPrs").onclick = () => loadPrs();
+$("#prQ").addEventListener("keydown", e => { if(e.key === "Enter") loadPrs(); });
+$("#prMine").onclick = () => { $("#prQ").value = "is:pr is:open author:@me sort:updated-desc"; loadPrs(); };
+$("#prForMe").onclick = () => { $("#prQ").value = "is:pr is:open review-requested:@me sort:updated-desc"; loadPrs(); };
+$("#prApprove").onclick = () => runPrAction("approve");
+$("#prMerge").onclick = () => runPrAction("merge");
+// The diagnose view used to be reachable only by hitting a 9px dot on a red row. It is a tab now,
+// and it opens on the list of everything red so it is useful before you know which service to ask
+// about.
+function showHealth(){
+  showPane("diag");
+  const bad = state.apps.filter(isDown).sort((a,b) => label(a).localeCompare(label(b)));
+  if(!bad.length){
+    $("#diagPane").innerHTML = '<div class="empty">Nothing unhealthy right now.</div>';
+    return;
+  }
+  $("#diagPane").innerHTML = `<div class="dg-sub">${bad.length} unhealthy service${bad.length > 1 ? "s" : ""}</div>`
+    + bad.map(a => {
+        const h = healthOf(a);
+        return `<button class="dg-row" data-diag="${escapeHtml(a)}">`
+          + `<span class="hdot ${escapeHtml(h.health)}"></span>`
+          + `<span class="dg-rname">${escapeHtml(label(a))}</span>`
+          + `<span class="ci-repo">${escapeHtml(h.health)}</span>`
+          + `<span class="age">${escapeHtml(ago(h.syncedAt))}</span></button>`;
+      }).join("");
+}
+function paintHealthCount(){
+  const n = state.apps.filter(a => isDown(a) && !state.muted.has(a)).length;
+  $("#tabHealthN").textContent = n ? n : "";
+}
+$("#diagPane").addEventListener("click", e => {
+  const row = e.target.closest("button[data-diag]");
+  if(row) showDiag(row.dataset.diag);
+});
+
+async function showDiag(app){
+  showPane("diag");
+  $("#diagPane").innerHTML = `<div class="empty"><span class="spinner"></span><br>`
+    + `reading events and pod logs for ${escapeHtml(label(app))}…</div>`;
+  try{
+    const r = await fetch("/api/diag?app=" + encodeURIComponent(app));
+    const d = await r.json();
+    if(d.error) throw new Error(d.error);
+    renderDiag(d);
+  }catch(e){ $("#diagPane").innerHTML = `<div class="empty">${escapeHtml(e.message || e)}</div>`; }
+}
+function renderDiag(d){
+  const head = `<div class="dg-head"><span class="dg-app">${escapeHtml(label(d.app))}</span>`
+    + `<span class="pill ${d.health === "Healthy" ? "success" : "failure"}">${escapeHtml(d.health || "?")}</span>`
+    + `<span class="ci-repo">${escapeHtml(d.sync || "")}</span>`
+    + `<button class="btn" id="diagBack">all unhealthy</button></div>`;
+  const conds = (d.conditions || []).map(c =>
+    `<div class="dg-ev Warning"><span class="r">${escapeHtml(c.type)}</span>`
+    + `<span class="m">${escapeHtml(c.message)}</span></div>`).join("");
+  const pods = (d.pods || []).map(p => {
+    const ev = (p.events || []).map(e =>
+      `<div class="dg-ev ${escapeHtml(e.type)}"><span class="r">${escapeHtml(e.reason)}`
+      + (e.count > 1 ? ` ×${escapeHtml(e.count)}` : "") + `</span>`
+      + `<span class="m">${escapeHtml(e.message)}</span>`
+      + `<span class="age">${escapeHtml(ago(e.at))}</span></div>`).join("");
+    const kind = p.kind && p.kind !== "Pod" ? `<span class="ci-repo">${escapeHtml(p.kind)}</span> ` : "";
+    return `<div class="dg-pod"><div class="dg-name">${kind}${escapeHtml(p.name)}</div>`
+      + `<div class="dg-info"><span>${escapeHtml(p.status)}</span>`
+      + (p.info || []).map(i => `<span>${escapeHtml(i)}</span>`).join("")
+      + `<span>${escapeHtml(p.namespace)}</span></div>`
+      + (p.message ? `<div class="dg-msg">${escapeHtml(p.message)}</div>` : "")
+      + (ev ? `<div class="dg-sub">events</div>${ev}` : "")
+      + (p.log ? `<div class="dg-sub">log \u00b7 ${escapeHtml(p.logContainer || "")}`
+                 + `${p.logPrevious ? " (the container that died)" : ""}</div>`
+                 + `<pre class="dg-log">${escapeHtml(p.log)}</pre>`
+         : p.kind === "Pod" ? `<div class="dg-info">no log kept for this pod</div>` : "")
+      + `</div>`;
+  }).join("");
+  $("#diagPane").innerHTML = head
+    + (conds ? `<div class="dg-sub">app conditions</div>${conds}` : "")
+    + (pods ? `<div class="dg-sub">unhealthy resources${d.podCount > (d.pods || []).length
+        ? ` (showing ${d.pods.length} of ${d.podCount})` : ""}</div>${pods}`
+      : `<div class="empty">Nothing unhealthy in the resource tree right now.</div>`);
+  $("#diagBack").onclick = () => showHealth();
+}
+
+// ---- GitHub Actions, via the gh CLI on the server: no OAuth app, no secret on disk ----
+async function loadRepos(){
+  try{
+    const r = await fetch("/api/repos"); const d = await r.json();
+    if(d.error) throw new Error(d.error);
+    state.repos = d;
+  }catch(e){ state.repos = {org:"", map:{}, repos:[], suggested:{}, error:e.message||String(e)}; }
+}
+async function saveRepoMap(app, repo){
+  const d = await post("/api/repos", {app, repo});   // server merges: no read-modify-write race
+  if(d.map) state.repos.map = d.map;
+  loadCi([app]);                                     // only the card that changed
+}
+// `gh run list` costs a round trip per repo, so a card refresh only asks for the cards that
+// changed and the rest keep showing what they already had.
+async function loadCi(apps){
+  const want = (apps || [...state.selected]).filter(a => state.selected.has(a));
+  if(!want.length){ renderCi(); return; }
+  if(!state.repos.repos || !state.repos.repos.length) await loadRepos();
+  want.forEach(a => state.ciBusy.add(a));
+  renderCi();
+  try{
+    const r = await fetch("/api/ci?apps=" + encodeURIComponent(want.join(",")));
+    const d = await r.json();
+    if(d.error) throw new Error(d.error);
+    (d.ci || []).forEach(c => state.ci[c.app] = c);
+  }catch(e){
+    want.forEach(a => state.ci[a] = {app:a, repo:"", error:e.message || String(e)});
+  }finally{
+    want.forEach(a => state.ciBusy.delete(a));
+    renderCi();
+  }
+}
+function ago2(iso){ return ago(iso) ? ago(iso) + " ago" : ""; }
+// Three destinations, because they answer three different questions: the PR shows the review and
+// the whole diff, the commit shows what actually landed, the run shows why CI is red.
+function prLink(r, repo){
+  const sha = r.headSha || "";
+  if(r.pr) return `<a class="btn" href="https://github.com/${gh(repo)}/pull/${escapeHtml(r.pr)}"`
+    + ` target="_blank" rel="noreferrer" title="Open the pull request and its diff">PR #${escapeHtml(r.pr)}</a>`;
+  return `<button class="btn" data-pr="${escapeHtml(sha)}" data-repo="${escapeHtml(repo)}"`
+    + ` title="This commit is not a squash merge — ask GitHub which PR it came from">find PR</button>`;
+}
+function gh(repo){ return escapeHtml(state.repos.org + "/" + repo); }
+function runLine(r, repo){
+  const st = r.conclusion || r.status || "";
+  const sha = (r.headSha || "");
+  return `<span class="pill ${escapeHtml(st)}">${escapeHtml(st)}</span>`
+    + `<a class="ci-sha" href="https://github.com/${gh(repo)}/commit/${escapeHtml(sha)}"`
+    + ` target="_blank" rel="noreferrer" title="Open this commit's diff">${escapeHtml(sha.slice(0,8))}</a>`
+    + `<span class="ci-title">${escapeHtml(r.displayTitle || "")}</span>`
+    + `<span class="age">${escapeHtml(ago2(r.createdAt))}</span>`
+    + prLink(r, repo)
+    + `<a class="btn" href="${escapeHtml(r.url)}" target="_blank" rel="noreferrer" title="Open this run on GitHub">run</a>`
+    + `<button class="btn" data-rerun="${escapeHtml(r.databaseId)}" data-repo="${escapeHtml(repo)}"`
+    + ` data-wf="${escapeHtml(r.workflowName || "")}" title="Re-run every job of this run on GitHub">rerun</button>`;
+}
+function repoPicker(app){
+  const sug = state.repos.suggested[app] || "";
+  const opts = ['<option value="">— no repo —</option>'].concat(
+    (state.repos.repos || []).map(r =>
+      `<option value="${escapeHtml(r)}"${r === sug ? " data-sug=\"1\"" : ""}>${escapeHtml(r)}${r === sug ? " (suggested)" : ""}</option>`));
+  return `<div class="ci-pick"><label>repo <select data-app="${escapeHtml(app)}">${opts.join("")}</select></label>`
+    + (sug ? `<button class="btn" data-accept="${escapeHtml(app)}" data-repo="${escapeHtml(sug)}">use ${escapeHtml(sug)}</button>` : "")
+    + `</div>`;
+}
+function workloadBlock(c){
+  const w = c.workload;
+  if(!w || !w.path) return "";
+  const open = (w.open || []).map(p =>
+    `<div class="ci-wf"><span class="name"><span class="pill in_progress">open</span></span>`
+    + `<a class="ci-sha" href="${escapeHtml(p.url)}" target="_blank" rel="noreferrer">#${escapeHtml(p.number)}</a>`
+    + `<span class="ci-title">${escapeHtml(p.title || "")}</span>`
+    + `<span class="age">${escapeHtml(ago2(p.at))}</span></div>`).join("");
+  // the bot pushes image bumps straight to the branch, so a landed change without a PR is the
+  // truth rather than a lookup that failed — no button to click and find that out
+  const landed = (w.commits || []).map(x =>
+    `<div class="ci-wf"><span class="name">${escapeHtml(ago2(x.date))}</span>`
+    + `<a class="ci-sha" href="${escapeHtml(x.url)}" target="_blank" rel="noreferrer"`
+    + ` title="Open this workload change">${escapeHtml(x.sha.slice(0,8))}</a>`
+    + `<span class="ci-title">${escapeHtml(x.title || "")}</span>`
+    + (x.pr ? `<a class="btn" href="${escapeHtml(x.prUrl)}" target="_blank" rel="noreferrer">PR #${escapeHtml(x.pr)}</a>`
+            : `<span class="ci-repo">pushed</span>`) + `</div>`).join("");
+  return `<div class="ci-wl"><a class="ci-repo" href="${escapeHtml(w.url)}" target="_blank" rel="noreferrer"`
+    + ` title="Open this service's directory in ${escapeHtml(w.repo)}">workload: ${escapeHtml(w.path)} \u2197</a>`
+    + (open ? `<div class="dg-sub">open pull requests</div>${open}` : "")
+    + (landed ? `<div class="dg-sub">landed</div>${landed}`
+              : `<div class="ci-repo">no workload change yet</div>`) + `</div>`;
+}
+function renderCi(){
+  const el = $("#ciPane");
+  if(!state.selected.size){
+    el.innerHTML = '<div class="empty">Tick services on the left to see their pipelines.</div>';
+    return;
+  }
+  if(state.repos.error){ el.innerHTML = `<div class="empty">gh unavailable: ${escapeHtml(state.repos.error)}</div>`; return; }
+  const apps = [...state.selected].sort((a,b) => label(a).localeCompare(label(b)));
+  el.innerHTML = apps.map(app => {
+    const c = state.ci[app] || {app, repo:"", workflows:[]};
+    const busy = state.ciBusy.has(app);
+    const head = `<div class="ci-head"><span class="ci-app">${escapeHtml(label(app))}</span>`
+      + (busy ? '<span class="spinner"></span>' : "")
+      + (c.repo ? `<a class="ci-repo" href="${escapeHtml(c.url || "")}" target="_blank" rel="noreferrer"`
+                  + ` title="Open the Actions tab of this repo">${escapeHtml(c.repo)} \u2197</a>`
+                  + `<span class="ci-repo">${escapeHtml(c.branch || "main")} only</span>`
+                  + `<button class="btn" data-accept="${escapeHtml(app)}" data-repo="">unlink</button>`
+                : repoPicker(app)) + `</div>`;
+    const body = c.error ? `<div class="ci-broke">${escapeHtml(c.error)}</div>` : c.repo
+      ? ((c.workflows || []).length ? c.workflows.map(w =>
+            `<div class="ci-wf"><span class="name" title="${escapeHtml(w.workflow)}">${escapeHtml(w.workflow)}</span>${runLine(w.latest, c.repo.split("/")[1])}</div>`
+            + (w.broke ? `<div class="ci-broke">broke at <a class="ci-sha" href="https://github.com/${gh(c.repo.split("/")[1])}/commit/${escapeHtml(w.broke.headSha)}" target="_blank" rel="noreferrer">${escapeHtml(w.broke.headSha.slice(0,8))}</a> `
+                 + `${escapeHtml(w.broke.displayTitle || "")} `
+                 + prLink(w.broke, c.repo.split("/")[1]) + " "
+                 + `<button class="btn" data-log="${escapeHtml(w.broke.databaseId)}" data-repo="${escapeHtml(c.repo.split("/")[1])}">failed log</button></div>` : "")
+          ).join("") : `<div class="ci-repo">${busy ? "loading…" : "no workflow runs"}</div>`)
+      : "";
+    return `<div class="ci-card" data-app="${escapeHtml(app)}">${head}${body}${workloadBlock(c)}</div>`;
+  }).join("");
+}
+$("#ciPane").addEventListener("change", e => {
+  const sel = e.target.closest("select[data-app]");
+  if(sel) saveRepoMap(sel.dataset.app, sel.value);
+});
+$("#ciPane").addEventListener("click", async e => {
+  const acc = e.target.closest("button[data-accept]");
+  if(acc){ saveRepoMap(acc.dataset.accept, acc.dataset.repo); return; }
+  const rr = e.target.closest("button[data-rerun]");
+  if(rr){
+    const repo = rr.dataset.repo, run = rr.dataset.rerun;
+    const ok = await askConfirm({title:"Re-run pipeline",
+      what:"Starts every job of this run again on GitHub Actions. These workflows deploy, "
+           + "so a re-run deploys that environment again.",
+      apps:[`${repo} · ${rr.dataset.wf} · run ${run}`], challenge:""});
+    if(!ok) return;
+    flashBtn(rr, "…");
+    const d = await post("/api/ci-rerun", {repo, run});
+    flashBtn(rr, d.ok ? "queued" : "failed");
+    const app = rr.closest(".ci-card").dataset.app;
+    if(d.ok) setTimeout(() => loadCi([app]), 4000);   // GitHub needs a moment to register the run
+    return;
+  }
+  const pr = e.target.closest("button[data-pr]");
+  if(pr){
+    flashBtn(pr, "…");
+    try{
+      const r = await fetch(`/api/pr?repo=${encodeURIComponent(pr.dataset.repo)}&sha=${encodeURIComponent(pr.dataset.pr)}`);
+      const d = await r.json();
+      if(d.pr){
+        const a = document.createElement("a");
+        a.className = "btn"; a.target = "_blank"; a.rel = "noreferrer";
+        a.href = `https://github.com/${state.repos.org}/${pr.dataset.repo}/pull/${d.pr}`;
+        a.textContent = "PR #" + d.pr;
+        pr.replaceWith(a);
+      }else{ flashBtn(pr, "no PR"); }
+    }catch(err){ flashBtn(pr, "failed"); }
+    return;
+  }
+  const lg = e.target.closest("button[data-log]");
+  if(!lg) return;
+  const box = document.createElement("pre"); box.className = "ci-log"; box.textContent = "loading…";
+  lg.closest(".ci-card").append(box);
+  try{
+    const r = await fetch(`/api/ci-log?repo=${encodeURIComponent(lg.dataset.repo)}&run=${encodeURIComponent(lg.dataset.log)}`);
+    const d = await r.json();
+    box.textContent = d.log || d.error || "no log";
+  }catch(err){ box.textContent = "failed: " + (err.message || err); }
+});
 
 // ---- copy ----
 async function copyText(t){

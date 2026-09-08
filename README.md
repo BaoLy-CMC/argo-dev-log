@@ -1,108 +1,105 @@
-# argo-dev-log — DevLogs UI
+# DevLogs
 
-Multi-service live log viewer for ArgoCD dev clusters. Streams `argocd app logs` for many services
-straight into the browser over SSE, merged and time-sorted, with service health, prefix folders,
-JSON folding, and restart/sync/refresh from the sidebar.
+A local dev console for an ArgoCD estate: live logs from many services merged into one
+time-ordered stream, why a service is red, its CI, and the open pull requests — in one page.
 
-![DevLogs UI — dark theme](docs/screenshot-dark.png)
+No Loki, no docker, no build step. One `index.html`, one `server.py`, and the `argocd` and `gh`
+CLIs that are already on your machine.
 
-Stdlib Python + one HTML file. No Loki, no docker, no npm, no pip install. Tokens live in the
-backend's memory only — never written to disk, never logged.
-
-## Requirements
-- Python 3.8+ (`python3` — macOS ships it with the Command Line Tools, Linux via your package manager)
-- The `argocd` CLI, logged in to nothing in particular: this tool passes the token itself
-  - macOS: `brew install argocd`
-  - Linux: `curl -sSLo ~/.local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64 && chmod +x ~/.local/bin/argocd`
-  - elsewhere: `export ARGOCD_BIN=/path/to/argocd`
-
-## Install & run
-    git clone git@github.com:BaoLy-CMC/argo-dev-log.git
-    cd argo-dev-log
-    ./run.sh            # http://localhost:8900, opens your browser
-
-Optional per-machine settings, e.g. in `~/.argocd-env` (sourced by `run.sh` if present):
-
-    export ARGOCD_SERVER=argocd.nonprod.example.io      # default domain
-    export ARGOCD_SERVERS=argocd.uat.example.io         # extra domains, comma-separated
-    export DEVLOGS_PORT=8900
-    export DEVLOGS_OPEN=0                               # do not open the browser
-    export ARGOCD_BIN=/opt/homebrew/bin/argocd
-
-Then in the UI:
-1. Pick the domain in the header, paste its `argocd.token` cookie -> **Connect**.
-2. Tick services on the left (filter box, folders, stars, all/none). ⊘ mutes a service: it drops into a collapsed **muted** folder at the bottom and stops counting towards the unhealthy badge.
-3. Each row shows its pod count (`ready/total`, red when a pod is short; nothing at all for a config-only app with no pods) and each folder gets a stable colour on its dot and branch line. Counts are fetched only for the rows on screen — drag the sidebar's right edge to widen it.
-4. Live logs stream in the middle — level filter, text/traceId filter, click a traceId to isolate a flow, double-click a line to copy it.
-5. Lines are shown compact: one time column, the short logger and the traceId, without the ~140 characters of repeated prefix the clusters emit. **raw** in the toolbar shows the untouched line.
-
-The header button toggles the light and dark theme; it follows your OS on first run.
+[Hướng dẫn tiếng Việt](docs/HUONG-DAN.md)
 
 ![Light theme](docs/screenshot-light.png)
 
-Click a traceId to isolate one flow across every selected service; JSON payloads (Kong access logs,
-request/response dumps) fold to a one-line summary and expand on click.
+## Run
 
-![Filtered by traceId, JSON payload expanded](docs/screenshot-trace.png)
+```bash
+./run.sh                       # or: python3 server.py
+```
 
-## Domains
-Several ArgoCD servers, one token each. The header picker shows `●` when the backend holds a token
-for that domain and `○` when it does not; switching stops the stream, clears the selection and loads
-that domain's services. `+` adds a domain (hostname only, validated), `−` removes it and drops its
-token from memory.
+Then open <http://localhost:8900>.
 
-The domain list comes from `ARGOCD_SERVER` (the default), `ARGOCD_SERVERS` (comma-separated extras)
-and `.devlogs-domains.json`, which the `+`/`−` buttons maintain. **That file holds hostnames only** —
-tokens never leave memory.
+```bash
+export ARGOCD_SERVER=argocd.example.com          # first domain in the picker
+export ARGOCD_SERVERS=argocd-a.example.com,...   # optional extras
+export ARGOCD_BIN=/opt/homebrew/bin/argocd       # if it is not on PATH
+```
 
-## Token — two ways to get it in
-- **Paste (always works):** DevTools → Application → Cookies → `argocd.token` → paste.
-- **grab-token bookmarklet:** drag the header button to your bookmarks bar; click it *while on the
-  ArgoCD tab*. It reads the token and POSTs it here. Works ONLY if the cookie is not HttpOnly and the
-  ArgoCD page's CSP allows a fetch to localhost — the bookmarklet alerts and tells you to fall back
-  to paste if either blocks it.
+Domains live in `.devlogs-domains.json` (hostnames only) and the `+` / `−` buttons maintain it.
 
-Reloading the page (F5) does not lose the token: it lives in the backend, so the UI probes
-`/api/apps` on load and picks the session back up. Selected services are not restored — re-tick them.
+## Token
 
-Token is held in server memory (never written to disk, never logged). It expires ~hourly (Keycloak
-ID token, no refresh) — when the stream errors with "token expired?", paste a fresh one and reconnect.
+DevTools → Application → Cookies → `argocd.token` → paste it in the header. The header then shows
+how long the token has left and says so plainly once it is gone — an expired token makes ArgoCD
+answer `invalid session: failed to verify the token`, which reads like a bug in this app.
 
-## How many services at once
-No hard cap, but each selected service = one `argocd app logs -f` subprocess + one connection to the
-ArgoCD server. Practical: ~10–20. The viewer keeps the last 5000 lines client-side (older drop).
+The token lives in the server's memory only: never on disk, never in a log. F5 does not lose it.
 
-## Sorting
-The backend buffers ~1.2s and re-orders lines by their own UTC timestamp before emitting, so the
-merged stream is roughly time-ordered across services. That 1.2s is also the max added latency —
-the inescapable trade-off of live + sorted. Tune `WINDOW` in server.py.
+If `argocd login <domain> --sso --grpc-web` works for you, the app uses that CLI session instead
+and there is nothing to paste. It does not work against an SSO client with no
+`http://localhost:8085/auth/callback` redirect registered, which is the common case.
 
-A line that looks like a continuation joins the previous one instead of becoming its own row: one
-event = one row, one level, one timestamp, and grep/copy act on the whole thing. Continuation means
-indented (stack frames, config dumps), `Caused by:`/`Suppressed:`, or an exception head at column 0
-(`org.spring...HttpClientErrorException$Unauthorized: 401 ...`). Everything else at column 0 starts a
-new row — a Kong JSON line or `127.0.0.6 - -` access log has no timestamp either, and gluing those
-together would merge the whole stream. The event closes when the next timestamped line arrives or after `IDLE_FLUSH` (0.4s)
-of silence — so worst-case latency is WINDOW + IDLE_FLUSH. `MAX_EVENT_LINES` (200) caps a runaway dump.
+## Tabs
 
-## Reconnects
-The `argocd app logs` stream dies on idle timeout. Reconnecting used to re-request `--tail 1`, which
-re-printed the last line — on a quiet service that meant the same old log every cycle, forever. It now
-asks for `--since-seconds <gap>` (the seconds the drop cost, capped at 60) and drops any line it just
-showed, so a reconnect prints only what actually happened. The "stream dropped, reconnecting" notice
-is skipped when nothing was received since the previous one.
+### logs
 
-## Files
-- docs/       README screenshots.
-- test_server.py  `python3 test_server.py` — self-check for line joining, actions and domains.
-- .devlogs-domains.json  the domain list written by the +/- buttons (hostnames only, no tokens).
-- server.py   stdlib-only backend: /api/token, /api/apps, /api/stream (SSE), serves index.html.
-- index.html  the UI (dark OLED, JetBrains Mono).
-- run.sh      launcher (checks python3 + argocd, opens the browser).
+Tick services on the left; their logs stream in merged and sorted by timestamp.
 
-## Ceilings (ponytail)
-- In-memory reorder heap, one process. Fine for a handful of services; many high-throughput streams
-  → widen WINDOW or shard per service.
-- Live only, no history/persistence. Need history/alerting → use a Loki/Grafana stack instead.
-- Backend binds 127.0.0.1 only. It is a local dev tool, not a shared service: there is no auth in
-  front of it, so anything that can reach the port can use whatever token is in memory.
+- One time column, then the service, the level, and the message. The `~140` characters of repeated
+  prefix the clusters emit (level twice, empty request ids, thread, package path) are folded away —
+  `raw` brings the untouched line back.
+- Level buttons filter; the text box filters text or a traceId; click a traceId to isolate a flow.
+- Stack traces and JSON stay in one event. Double-click a line to copy it.
+- Each row shows its pod count (`ready/total`, red when short, nothing for a pod-less app).
+
+### health
+
+![Health](docs/screenshot-health.png)
+
+Everything unhealthy, and for one service: its conditions, then each unhealthy **resource** with the
+Kubernetes events (warnings first) and — for pods — the tail of the log from the container that
+*died*. Not just pods: an app is often red only because an ExternalSecret cannot reach its provider.
+
+### ci
+
+GitHub Actions for the ticked services, default branch only. Per workflow: the latest run and, when
+it is red, the commit that broke it plus that job's failing log. Below it, the service's deploy
+history from the GitOps repo — the app → directory mapping is read from each
+`.argocd-source-<app>.yaml`, so it is exact rather than guessed.
+
+Link a service to its repo once; suggestions are offered only on an exact name match.
+
+### prs
+
+![Pull requests](docs/screenshot-prs.png)
+
+Open pull requests, one GraphQL search, with the review decision and the diff size (a four-figure
+diff is printed bold: not something to approve inside a batch).
+
+- `claude` pipes the diff into the **local** `claude` CLI, so the review applies the conventions in
+  your `CLAUDE.md` and no API key is involved.
+- `approve` / `merge` wrap `~/bin/approve-prs.py` and `~/bin/merge-prs.py`
+  (`DEVLOGS_APPROVE_BIN` / `DEVLOGS_MERGE_BIN` to relocate) instead of reimplementing them.
+- Both run `--dry-run` first and the confirmation dialog shows that output, so for a merge you see
+  which PRs the tool refuses and why. Over three PRs you type the action. There is no
+  approve-everything button.
+
+This tab needs no ArgoCD token; it only talks to `gh`.
+
+## Keys and layout
+
+`/` focuses the service filter, `Escape` empties it. Drag the sidebar's right edge to resize it —
+the width is remembered. `★` stars a service, `⊘` mutes it into a collapsed folder at the bottom.
+Tick services and the sync/restart row appears.
+
+## Notes
+
+- **Colour rule:** chrome is indigo (`--accent`: buttons, focus, links, tabs, selection) and colour
+  means status — `--ok` is green and means healthy / approved / success, nothing else. Every text
+  colour is ≥ 4.5:1 on all three surfaces in both themes.
+- Pod counts, events and previous-container logs come from the ArgoCD REST API because the CLI has
+  no command for the resource tree. Everything else goes through `argocd` and `gh`.
+- `restart`, `sync`, `rerun`, `approve` and `merge` all confirm first, and `restart` makes you type
+  the word.
+- `python3 test_server.py` runs the checks: no framework, no network.
+
+![Dark theme](docs/screenshot-dark.png)
