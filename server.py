@@ -37,8 +37,21 @@ CLAUDE = os.environ.get("CLAUDE_BIN") or shutil.which("claude") or os.path.expan
 # The bulk approve/merge scripts already parse PR references, classify mergeability, retry while
 # GitHub says UNKNOWN and refuse to force-merge. Wrapping them beats a second implementation that
 # would drift from the one used from the shell.
-APPROVE_BIN = os.environ.get("DEVLOGS_APPROVE_BIN") or os.path.expanduser("~/bin/approve-prs.py")
-MERGE_BIN = os.environ.get("DEVLOGS_MERGE_BIN") or os.path.expanduser("~/bin/merge-prs.py")
+
+
+def _pr_tool(name: str, env: str) -> str:
+    """Ship a copy in tools/ so a fresh clone works, but let a personal ~/bin version win: whoever
+    already runs these from the shell keeps one copy to maintain."""
+    if os.environ.get(env):
+        return os.environ[env]
+    home = os.path.expanduser(f"~/bin/{name}")
+    if os.path.exists(home):
+        return home
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools", name)
+
+
+APPROVE_BIN = _pr_tool("approve-prs.py", "DEVLOGS_APPROVE_BIN")
+MERGE_BIN = _pr_tool("merge-prs.py", "DEVLOGS_MERGE_BIN")
 DEFAULT_SERVER = os.environ.get("ARGOCD_SERVER", "argocd.example.com")
 EXTRA_SERVERS = os.environ.get("ARGOCD_SERVERS", "")  # comma-separated, optional
 LIST_TIMEOUT = int(os.environ.get("DEVLOGS_LIST_TIMEOUT", "90"))  # 490 apps over grpc-web is slow

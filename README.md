@@ -10,6 +10,11 @@ CLIs that are already on your machine.
 
 ![Light theme](docs/screenshot-light.png)
 
+## Needs
+
+`python3`, and the CLIs you already have: `argocd` for logs and health, `gh` for the ci and prs
+tabs, `claude` only for the review button. Nothing to install, no lockfile.
+
 ## Run
 
 ```bash
@@ -77,8 +82,9 @@ diff is printed bold: not something to approve inside a batch).
 
 - `claude` pipes the diff into the **local** `claude` CLI, so the review applies the conventions in
   your `CLAUDE.md` and no API key is involved.
-- `approve` / `merge` wrap `~/bin/approve-prs.py` and `~/bin/merge-prs.py`
-  (`DEVLOGS_APPROVE_BIN` / `DEVLOGS_MERGE_BIN` to relocate) instead of reimplementing them.
+- `approve` / `merge` run `tools/approve-prs.py` and `tools/merge-prs.py`, which ship with the repo
+  and also work from the shell. A personal `~/bin/approve-prs.py` wins over the shipped copy, and
+  `DEVLOGS_APPROVE_BIN` / `DEVLOGS_MERGE_BIN` win over both.
 - Both run `--dry-run` first and the confirmation dialog shows that output, so for a merge you see
   which PRs the tool refuses and why. Over three PRs you type the action. There is no
   approve-everything button.

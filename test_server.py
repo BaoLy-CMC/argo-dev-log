@@ -166,6 +166,25 @@ def test_workload_paths_read_the_manifest_names_and_skip_exclude():
     assert found == {"vikki-mobile-dev-party-service": "vikki-mobile/dev/party-service"}, found
 
 
+def test_pr_tools_fall_back_to_the_copy_in_the_repo():
+    """A teammate cloning this repo has no ~/bin, and the approve/merge buttons must still work."""
+    env, home = "DEVLOGS_APPROVE_BIN", os.path.expanduser("~/bin/approve-prs.py")
+    os.environ[env] = "/somewhere/else.py"
+    try:
+        assert server._pr_tool("approve-prs.py", env) == "/somewhere/else.py", "env wins"
+    finally:
+        del os.environ[env]
+    got = server._pr_tool("approve-prs.py", env)
+    expected = home if os.path.exists(home) else os.path.join(
+        os.path.dirname(os.path.abspath(server.__file__)), "tools", "approve-prs.py")
+    assert got == expected, got
+    shipped = os.path.join(os.path.dirname(os.path.abspath(server.__file__)),
+                           "tools", "approve-prs.py")
+    assert os.path.exists(shipped), "tools/approve-prs.py must be in the repo"
+    assert os.path.exists(shipped.replace("approve-prs", "merge-prs")), \
+        "tools/merge-prs.py must be in the repo"
+
+
 def test_open_workload_prs_match_the_exact_directory():
     server._wl_open[:] = [time.time(), [
         {"number": 1, "paths": ["vikki-mobile/dev/party-service/values.yaml"]},
@@ -386,6 +405,7 @@ if __name__ == "__main__":
     test_token_expiry_is_read_from_the_token_itself()
     test_env_leaves_the_cli_session_alone_when_no_token()
     test_workload_paths_read_the_manifest_names_and_skip_exclude()
+    test_pr_tools_fall_back_to_the_copy_in_the_repo()
     test_open_workload_prs_match_the_exact_directory()
     test_repo_suggestion_is_exact_suffix_only()
     test_first_breakage_is_the_oldest_failure_at_the_head()

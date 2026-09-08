@@ -3,6 +3,11 @@
 Xem log nhiều service cùng lúc, biết service nào đang đỏ và vì sao, xem CI và duyệt PR — trong một
 trang. Chạy local, không cần Loki hay docker.
 
+## Cần gì
+
+`python3`, cộng CLI bạn đã có sẵn: `argocd` (log, health), `gh` (tab ci và prs), `claude` (chỉ cho
+nút review). Không cài thêm gì.
+
 ## Chạy
 
 ```bash
@@ -57,7 +62,8 @@ approve loại đó trong một lô.
 
 - `claude` gửi diff sang `claude` CLI **trên máy bạn** review. Nó đọc được `CLAUDE.md` của repo, nên
   bắt đúng convention của team.
-- `approve` / `merge` gọi lại chính `~/bin/approve-prs.py` và `~/bin/merge-prs.py` của bạn.
+- `approve` / `merge` gọi `tools/approve-prs.py` và `tools/merge-prs.py` đi kèm repo (chạy từ shell
+  cũng được). Ai đã có bản riêng trong `~/bin` thì bản đó được ưu tiên.
 - Luôn chạy `--dry-run` trước, hộp xác nhận hiện đúng output đó — với merge bạn thấy **PR nào bị từ
   chối và vì sao** trước khi bấm. Trên 3 PR phải gõ chữ để xác nhận. Không có nút approve-tất-cả.
 
