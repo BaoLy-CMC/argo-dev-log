@@ -1804,7 +1804,8 @@ async function askClaude(btn, apps, lines){
     const d = await post("/api/analyze", {apps, lines});
     if(d.error) throw new Error(d.error);
     $("#askBody").textContent = d.text || "(no answer)";
-    if(d.repo) $("#askSrc").textContent += " · read " + d.repo;
+    const read = [d.repo, d.workload && "deploy manifests"].filter(Boolean);
+    if(read.length) $("#askSrc").textContent += " · read " + read.join(" + ");
   }catch(e){
     $("#askBody").textContent = "failed: " + (e.message || e);
   }

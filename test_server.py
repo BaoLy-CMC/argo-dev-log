@@ -514,6 +514,39 @@ def test_analyze_rejects_bad_app_names_and_caps_the_lines():
         server.subprocess.run, server.CLAUDE = real_run, real_claude
 
 
+def test_workload_manifest_takes_yaml_only_and_stops_at_the_cap():
+    calls = []
+
+    def fake_gh(args, timeout=45):
+        calls.append(args)
+        if "/contents/" in args[1] and args[1].endswith("/fsap/demo-service"):
+            return json.dumps([{"name": "values.yaml", "size": 900,
+                                "path": "fsap/demo-service/values.yaml"},
+                               {"name": "Chart.yaml", "size": 200,
+                                "path": "fsap/demo-service/Chart.yaml"},
+                               {"name": "README.md", "size": 10,
+                                "path": "fsap/demo-service/README.md"},
+                               {"name": "huge.yaml", "size": server.MAX_WORKLOAD_BYTES + 1,
+                                "path": "fsap/demo-service/huge.yaml"}])
+        return "body of " + args[1].rsplit("/", 1)[-1] + "\n"
+
+    real_gh, real_org, real_wl = server._gh, dict(server._repos), list(server._workload)
+    try:
+        server._gh = fake_gh
+        server._repos["org"], server._repos["workload"] = "DemoOrg", "demo-workload"
+        server._workload[:] = [time.time(), {"demo-app": "fsap/demo-service"}]
+        out = server.workload_manifest("demo-app")
+        assert "--- fsap/demo-service/Chart.yaml" in out, out
+        assert "--- fsap/demo-service/values.yaml" in out, out
+        assert "README" not in out, out          # not yaml
+        assert "huge" not in out, out            # over the cap on its own
+        assert server.workload_manifest("app-not-in-the-repo") == ""
+    finally:
+        server._gh = real_gh
+        server._repos.clear(); server._repos.update(real_org)
+        server._workload[:] = real_wl
+
+
 if __name__ == "__main__":
     test_continuation_lines_join_one_event()
     test_runaway_dump_is_capped()
@@ -543,6 +576,7 @@ if __name__ == "__main__":
     test_repo_map_rejects_names_that_would_reach_argv()
     test_repo_dir_finds_the_checkout_and_never_leaves_the_root()
     test_analyze_rejects_bad_app_names_and_caps_the_lines()
+    test_workload_manifest_takes_yaml_only_and_stops_at_the_cap()
     # last two: they replace server.list_apps and subprocess.run and never put them back
     test_pod_counts_parse_and_reject_bad_names()
     test_action_argv_and_whitelist()

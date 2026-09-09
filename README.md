@@ -72,6 +72,12 @@ is linked to a repo and that repo is checked out under `DEVLOGS_SRC_ROOT` (one l
 the repo name), the CLI runs there and can name the file at fault; with no checkout it runs in an
 empty directory, so it cannot mistake some other codebase for the one that broke.
 
+It also reads the service's directory in the GitOps repo — image tag, resource limits, env, probes.
+Half of why a service is down lives there and never reaches its own logs: a memory limit it now
+exceeds, a probe that fires during a throttled boot, a tag that rolled. The directory is found the
+same exact way the ci tab finds it, from `.argocd-source-<app>.yaml`. Manifests reference secrets by
+name only, so no secret value is ever in the prompt.
+
 A muted service is muted here too: it leaves the list and stops counting against the tab badge.
 
 ### ci

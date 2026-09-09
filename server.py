@@ -348,13 +348,20 @@ def analyze(apps: list, lines: list) -> dict:
     apps = [a for a in dict.fromkeys(apps) if APP_NAME_RE.match(a)]
     if not apps:
         raise RuntimeError("no valid app name given")
-    parts = []
-    # diagnose() is per-app, so it only makes sense for a single one. Several apps: the logs are
-    # the whole story, and that is what the operator was reading anyway.
+    parts, deployed = [], ""
+    # diagnose() and the workload directory are both per-app, so they only make sense for a single
+    # one. Several apps: the logs are the whole story, and that is what the operator was reading.
     if len(apps) == 1:
         try:
             parts.append("ArgoCD diagnosis:\n" + json.dumps(diagnose(apps[0]), indent=1))
         except Exception:  # noqa: BLE001 -- a healthy app, no token, ArgoCD down: logs still count
+            pass
+        try:
+            manifest = workload_manifest(apps[0])
+            if manifest:
+                deployed = workload_paths().get(apps[0], "")
+                parts.append("Deployed manifests, from the GitOps repo:\n" + manifest)
+        except Exception:  # noqa: BLE001 -- no gh, no workload repo, app not in it: keep going
             pass
     text = "\n".join(str(x) for x in lines[-MAX_ANALYZE_LINES:])
     if text.strip():
@@ -373,7 +380,7 @@ def analyze(apps: list, lines: list) -> dict:
     if r.returncode != 0:
         tail = (r.stderr or r.stdout).strip().splitlines()
         raise RuntimeError(tail[-1] if tail else "claude failed")
-    return {"text": (r.stdout or "").strip(), "apps": apps,
+    return {"text": (r.stdout or "").strip(), "apps": apps, "workload": deployed,
             "repo": os.path.basename(src), "bytes": len(body)}
 
 
@@ -475,6 +482,27 @@ GQL_LANDED = """query($owner:String!,$repo:String!,$path:String!,$n:Int!){
     } } }
   }
 }"""
+
+
+def workload_manifest(app: str) -> str:
+    """The app's GitOps directory as text — image tag, resource limits, env, replicas, probes. Half
+    of why a service is down is here and never appears in its own logs: a limit it now exceeds, an
+    env that moved, a tag that rolled. Values only reference secrets by name, never carry them."""
+    repo, path = workload_repo(), workload_paths().get(app, "")
+    if not repo or not path:
+        return ""
+    listing = json.loads(_gh(["api", f"repos/{gh_org()}/{repo}/contents/{path}",
+                              "--jq", '[.[] | select(.type=="file") | {name,size,path}]'], 30)
+                         or "[]")
+    out, used = [], 0
+    for f in sorted(listing, key=lambda x: x["name"]):
+        if not f["name"].endswith((".yaml", ".yml")) or used + f["size"] > MAX_WORKLOAD_BYTES:
+            continue
+        body = _gh(["api", f"repos/{gh_org()}/{repo}/contents/{f['path']}",
+                    "-H", "Accept: application/vnd.github.raw"], 30)
+        used += len(body)
+        out.append(f"--- {f['path']}\n{body.rstrip()}")
+    return "\n".join(out)
 
 
 def workload_open_prs() -> list:
@@ -740,17 +768,21 @@ MAX_DIFF_BYTES = 400_000  # a 3600-line PR is normal here; past this a review is
 MAX_REVIEW_BODY = 4000
 MAX_FINDINGS = 12
 MAX_WL_OPEN_PRS = 40  # the workload repo runs ~20 open PRs; 40 leaves headroom for one call
+MAX_WORKLOAD_BYTES = 40_000  # a service directory is a Chart and a values file, not a repo
 MAX_DIAG_ITEMS = 8  # a broken rollout can leave dozens of failed resources; eight tells the story
 MAX_ANALYZE_LINES = 400  # past this the answer gets vaguer, not better, and the wait gets worse
 MAX_ANALYZE_BYTES = 200_000
 ANALYZE_PROMPT = (
     "You are looking at a failing service in a Kubernetes/ArgoCD estate. Below is what the "
-    "operator can see: the ArgoCD diagnosis of the app if it is unhealthy, and log lines they "
-    "currently have on screen. Say what is wrong, in prose, no JSON and no headings.\n\n"
+    "operator can see: the ArgoCD diagnosis of the app if it is unhealthy, log lines they "
+    "currently have on screen, and the manifests the app is deployed from. Say what is wrong, in "
+    "prose, no JSON and no headings.\n\n"
     "Lead with the single most likely cause in one sentence. Then the evidence you based it on, "
     "quoting the specific line or event. Then what to check or do next, concretely. If the source "
     "is available to you in the working directory, name the file and function at fault and read "
-    "it before blaming it. Say plainly when the logs are not enough to tell — a confident wrong "
+    "it before blaming it. Check the manifests against the symptom: a memory limit against an "
+    "OOMKill, a probe against a restart loop, an env or image tag against something that worked "
+    "yesterday. Say plainly when the logs are not enough to tell — a confident wrong "
     "answer costs more than an honest 'not enough here'. Keep it under 400 words.")
 _pods = {}  # (domain, app) -> (fetched_at, {"ready": n, "total": n})
 
