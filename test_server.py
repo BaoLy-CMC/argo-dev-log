@@ -2,8 +2,10 @@
 """Self-check for the line-joining logic: python3 test_server.py (no framework, no network)."""
 import json
 import os
+import shutil
 import tempfile
 import time
+import types
 
 import server
 
@@ -462,6 +464,56 @@ def test_repo_map_rejects_names_that_would_reach_argv():
         os.remove(tmp)
 
 
+def test_repo_dir_finds_the_checkout_and_never_leaves_the_root():
+    root = tempfile.mkdtemp()
+    outside = tempfile.mkdtemp()
+    real_root, real_src = server.SRC_ROOT, dict(server._repos["map"])
+    try:
+        os.makedirs(os.path.join(root, "vikki", "party-service"))
+        os.symlink(outside, os.path.join(root, "vikki", "escapee"))
+        server.SRC_ROOT = root
+        server._repos["map"] = {"vikki-party-service": "party-service",
+                                "escaping-service": "escapee",
+                                "unmapped-service": ""}
+        assert server.repo_dir("vikki-party-service") == os.path.realpath(
+            os.path.join(root, "vikki", "party-service")), server.repo_dir("vikki-party-service")
+        # a symlink out of SRC_ROOT resolves outside it, so it is not a checkout we will cd into
+        assert server.repo_dir("escaping-service") == "", server.repo_dir("escaping-service")
+        assert server.repo_dir("unmapped-service") == ""
+        assert server.repo_dir("never-heard-of-it") == ""
+    finally:
+        server.SRC_ROOT, server._repos["map"] = real_root, real_src
+        shutil.rmtree(root, ignore_errors=True)
+        shutil.rmtree(outside, ignore_errors=True)
+
+
+def test_analyze_rejects_bad_app_names_and_caps_the_lines():
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        seen["input"], seen["cwd"] = kw["input"], kw["cwd"]
+        return types.SimpleNamespace(returncode=0, stdout="looks like a bad deploy", stderr="")
+
+    real_run, real_claude = server.subprocess.run, server.CLAUDE
+    try:
+        server.CLAUDE = __file__  # any existing path: the run itself is faked
+        server.subprocess.run = fake_run
+        try:
+            server.analyze(["bad app name", "../etc"], ["boom"])
+            raise AssertionError("a bad app name should not reach claude")
+        except RuntimeError as e:
+            assert "no valid app name" in str(e), e
+        lines = [f"line {i}" for i in range(server.MAX_ANALYZE_LINES + 50)]
+        out = server.analyze(["demo-service", "demo-service"], lines)
+        assert out["text"] == "looks like a bad deploy", out
+        assert out["apps"] == ["demo-service"], out          # deduplicated
+        body = seen["input"]
+        assert "line 449" in body and "line 49" not in body, body[:200]   # the tail is what is kept
+        assert body.count("\nline ") == server.MAX_ANALYZE_LINES, body.count("\nline ")
+    finally:
+        server.subprocess.run, server.CLAUDE = real_run, real_claude
+
+
 if __name__ == "__main__":
     test_continuation_lines_join_one_event()
     test_runaway_dump_is_capped()
@@ -489,6 +541,8 @@ if __name__ == "__main__":
     test_repo_link_merges_instead_of_replacing()
     test_save_merges_with_disk_and_honours_unlink()
     test_repo_map_rejects_names_that_would_reach_argv()
+    test_repo_dir_finds_the_checkout_and_never_leaves_the_root()
+    test_analyze_rejects_bad_app_names_and_caps_the_lines()
     # last two: they replace server.list_apps and subprocess.run and never put them back
     test_pod_counts_parse_and_reject_bad_names()
     test_action_argv_and_whitelist()

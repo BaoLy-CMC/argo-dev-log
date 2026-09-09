@@ -27,6 +27,7 @@ Then open <http://localhost:8900>.
 export ARGOCD_SERVER=argocd.example.com          # first domain in the picker
 export ARGOCD_SERVERS=argocd-a.example.com,...   # optional extras
 export ARGOCD_BIN=/opt/homebrew/bin/argocd       # if it is not on PATH
+export DEVLOGS_SRC_ROOT=~/projects/finx          # where your service checkouts live
 ```
 
 Domains live in `.devlogs-domains.json` (hostnames only) and the `+` / `−` buttons maintain it.
@@ -64,6 +65,15 @@ Everything unhealthy, and for one service: its conditions, then each unhealthy *
 Kubernetes events (warnings first) and — for pods — the tail of the log from the container that
 *died*. Not just pods: an app is often red only because an ExternalSecret cannot reach its provider.
 
+`ask claude` hands that whole diagnosis to the **local** `claude` CLI and gets back prose: the most
+likely cause, the line or event it is based on, and what to check next. The same button sits in the
+logs toolbar, where it sends the lines currently on screen instead — filters and all. If the service
+is linked to a repo and that repo is checked out under `DEVLOGS_SRC_ROOT` (one level down, matching
+the repo name), the CLI runs there and can name the file at fault; with no checkout it runs in an
+empty directory, so it cannot mistake some other codebase for the one that broke.
+
+A muted service is muted here too: it leaves the list and stops counting against the tab badge.
+
 ### ci
 
 GitHub Actions for the ticked services, default branch only. Per workflow: the latest run and, when
@@ -91,6 +101,10 @@ diff is printed bold: not something to approve inside a batch).
 - Both run `--dry-run` first and the confirmation dialog shows that output, so for a merge you see
   which PRs the tool refuses and why. The dialog also takes an optional review comment. Over three
   PRs you type the action. There is no approve-everything button.
+- The `all` box ticks every pull request the current search loaded — which is what you searched for,
+  not everything open. Past thirty the count turns red and both buttons go dead: the tools take the
+  first thirty references and drop the rest, so narrowing the search is the only honest answer. A
+  new search clears the picks; a selection you can no longer see is one you cannot check.
 
 This tab needs no ArgoCD token; it only talks to `gh`.
 
@@ -99,6 +113,11 @@ This tab needs no ArgoCD token; it only talks to `gh`.
 `/` focuses the service filter, `Escape` empties it. Drag the sidebar's right edge to resize it —
 the width is remembered. `★` stars a service, `⊘` mutes it into a collapsed folder at the bottom.
 Tick services and the sync/restart row appears.
+
+Muting a group puts it in that folder as a group, so one click brings the whole thing back. The bell
+alerts you when a **starred** service turns red — once per transition, not once per poll — with a
+desktop notification if you grant permission. Mute wins over star: silencing something silences it.
+The alert only lives while the tab is open. It is a nudge, not a pager.
 
 ## Notes
 

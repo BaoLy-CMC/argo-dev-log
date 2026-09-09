@@ -11,6 +11,7 @@ services; for many high-throughput streams, widen WINDOW or shard per service.
 """
 import base64
 import calendar
+import glob
 import heapq
 import json
 import os
@@ -18,6 +19,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.error
@@ -34,6 +36,10 @@ ARGOCD = (os.environ.get("ARGOCD_BIN") or shutil.which("argocd")
           or os.path.expanduser("~/.local/bin/argocd"))
 GH = os.environ.get("GH_BIN") or shutil.which("gh") or os.path.expanduser("~/.local/bin/gh")
 CLAUDE = os.environ.get("CLAUDE_BIN") or shutil.which("claude") or os.path.expanduser("~/.local/bin/claude")
+# `_repos["map"]` holds a repo *name*, never a path. Checkouts sit one level down here, and the
+# directory names match, so an analysis can be handed the actual source instead of guessing from a
+# stack trace. No checkout is not an error: the analysis just runs shallower.
+SRC_ROOT = os.environ.get("DEVLOGS_SRC_ROOT") or os.path.expanduser("~/projects/finx")
 # The bulk approve/merge scripts already parse PR references, classify mergeability, retry while
 # GitHub says UNKNOWN and refuse to force-merge. Wrapping them beats a second implementation that
 # would drift from the one used from the shell.
@@ -308,6 +314,67 @@ def parse_findings(text: str, allowed: dict) -> list:
                     "body": str(f["body"]).strip()[:MAX_REVIEW_BODY], "postable": ok,
                     "why": "" if ok else ("no such line in the diff" if path else "no file given")})
     return out[:MAX_FINDINGS]
+
+
+_scratch = []
+
+
+def _empty_dir() -> str:
+    """One empty directory per process, so an analysis without a checkout has nothing to read."""
+    if not _scratch:
+        _scratch.append(tempfile.mkdtemp(prefix="devlogs-analyze-"))
+    return _scratch[0]
+
+
+def repo_dir(app: str) -> str:
+    """The local checkout for an app, or "" when there is not one. Never leaves SRC_ROOT: the repo
+    name is validated and the resolved path is checked, because this becomes a subprocess cwd."""
+    name = _repos["map"].get(app, "")
+    if not name or not GH_NAME_RE.match(name):
+        return ""
+    root = os.path.realpath(SRC_ROOT)
+    for cluster in sorted(glob.glob(os.path.join(SRC_ROOT, "*"))):
+        cand = os.path.realpath(os.path.join(cluster, name))
+        if os.path.isdir(cand) and cand.startswith(root + os.sep):
+            return cand
+    return ""
+
+
+def analyze(apps: list, lines: list) -> dict:
+    """Hand the operator's own view of a failing service to the claude CLI. Same reason as
+    claude_review: the CLI reads the repo it runs in, an API call would not."""
+    if not os.path.exists(CLAUDE):
+        raise RuntimeError(f"{CLAUDE} not found — set CLAUDE_BIN")
+    apps = [a for a in dict.fromkeys(apps) if APP_NAME_RE.match(a)]
+    if not apps:
+        raise RuntimeError("no valid app name given")
+    parts = []
+    # diagnose() is per-app, so it only makes sense for a single one. Several apps: the logs are
+    # the whole story, and that is what the operator was reading anyway.
+    if len(apps) == 1:
+        try:
+            parts.append("ArgoCD diagnosis:\n" + json.dumps(diagnose(apps[0]), indent=1))
+        except Exception:  # noqa: BLE001 -- a healthy app, no token, ArgoCD down: logs still count
+            pass
+    text = "\n".join(str(x) for x in lines[-MAX_ANALYZE_LINES:])
+    if text.strip():
+        parts.append(f"Log lines on screen ({', '.join(apps)}):\n" + text)
+    if not parts:
+        return {"text": "", "error": "nothing to analyse: no diagnosis and no log lines"}
+    body = ("\n\n".join(parts))[-MAX_ANALYZE_BYTES:]
+    # An unmapped service must not be analysed from inside this repo: the CLI would read whatever
+    # code and CLAUDE.md it finds in the cwd and confidently blame the wrong codebase. Verified —
+    # it critiqued diagnose() when asked about a Spark job. No checkout, no repo to read.
+    src = repo_dir(apps[0])
+    if not src:
+        body = "No source checkout is available for this service.\n\n" + body
+    r = subprocess.run([CLAUDE, "-p"], input=ANALYZE_PROMPT + "\n\n" + body,
+                       capture_output=True, text=True, timeout=900, cwd=src or _empty_dir())
+    if r.returncode != 0:
+        tail = (r.stderr or r.stdout).strip().splitlines()
+        raise RuntimeError(tail[-1] if tail else "claude failed")
+    return {"text": (r.stdout or "").strip(), "apps": apps,
+            "repo": os.path.basename(src), "bytes": len(body)}
 
 
 def claude_review(repo: str, number: int) -> dict:
@@ -674,6 +741,17 @@ MAX_REVIEW_BODY = 4000
 MAX_FINDINGS = 12
 MAX_WL_OPEN_PRS = 40  # the workload repo runs ~20 open PRs; 40 leaves headroom for one call
 MAX_DIAG_ITEMS = 8  # a broken rollout can leave dozens of failed resources; eight tells the story
+MAX_ANALYZE_LINES = 400  # past this the answer gets vaguer, not better, and the wait gets worse
+MAX_ANALYZE_BYTES = 200_000
+ANALYZE_PROMPT = (
+    "You are looking at a failing service in a Kubernetes/ArgoCD estate. Below is what the "
+    "operator can see: the ArgoCD diagnosis of the app if it is unhealthy, and log lines they "
+    "currently have on screen. Say what is wrong, in prose, no JSON and no headings.\n\n"
+    "Lead with the single most likely cause in one sentence. Then the evidence you based it on, "
+    "quoting the specific line or event. Then what to check or do next, concretely. If the source "
+    "is available to you in the working directory, name the file and function at fault and read "
+    "it before blaming it. Say plainly when the logs are not enough to tell — a confident wrong "
+    "answer costs more than an honest 'not enough here'. Keep it under 400 words.")
 _pods = {}  # (domain, app) -> (fetched_at, {"ready": n, "total": n})
 
 
@@ -1160,6 +1238,17 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 got = run_pr_tool(APPROVE_BIN if action == "approve" else MERGE_BIN, refs, args)
                 self._send(200, {**got, "refs": refs, "plan": plan})
+            except Exception as e:  # noqa: BLE001
+                self._send(400, {"error": str(e)})
+            return
+        if self.path == "/api/analyze":
+            body = self._body()
+            apps, lines = body.get("apps") or [], body.get("lines") or []
+            if not isinstance(apps, list) or not isinstance(lines, list):
+                self._send(400, {"error": "apps and lines must be lists"})
+                return
+            try:
+                self._send(200, analyze(apps, lines))
             except Exception as e:  # noqa: BLE001
                 self._send(400, {"error": str(e)})
             return

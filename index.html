@@ -202,6 +202,9 @@
   .pr .pill{flex:0 0 auto}
   .pr .btn{flex:0 0 auto;padding:2px 7px;font-size:11px;min-height:0}
   .pr .size .a{color:var(--ok)} .pr .size .d{color:var(--err)}
+  .pr-all{display:flex;align-items:center;gap:5px;color:var(--muted);font-size:12px;cursor:pointer;white-space:nowrap}
+  .pr-all input{accent-color:var(--accent);width:15px;height:15px;cursor:pointer}
+  #prCount.over{color:var(--err)}
   .pr .big{font-weight:700}
   .pill.REVIEW_REQUIRED{color:var(--warn);border-color:var(--warn)}
   .pill.APPROVED{color:var(--ok);border-color:var(--ok)}
@@ -260,6 +263,27 @@
   #dlgChallengeWrap b{color:var(--err)}
   #dlgChallenge{flex:1}
   .dlg-actions{display:flex;gap:var(--sp2);justify-content:flex-end}
+
+  #alertBar{
+    position:fixed;right:var(--sp4);bottom:var(--sp4);z-index:9;max-width:min(420px,80vw);
+    padding:10px 14px;background:var(--card);color:var(--fg);font:inherit;font-size:13px;
+    text-align:left;line-height:1.5;cursor:pointer;border:1px solid var(--err);
+    border-left:3px solid var(--err);border-radius:var(--radius);box-shadow:0 6px 24px var(--backdrop);
+  }
+  #alertBar b{color:var(--err)}
+
+  dialog#ask{
+    background:var(--card);color:var(--fg);border:1px solid var(--border);border-radius:var(--radius);
+    padding:var(--sp4);width:min(760px,92vw);font-family:inherit;font-size:13px;
+  }
+  dialog#ask::backdrop{background:var(--backdrop)}
+  dialog#ask h2{margin:0 0 var(--sp2);font-size:15px;display:flex;align-items:center;gap:var(--sp2)}
+  #askSrc{color:var(--muted);font-size:11px;font-weight:400;letter-spacing:.04em}
+  #askBody{
+    margin:0 0 var(--sp3);padding:var(--sp3);max-height:60vh;overflow:auto;white-space:pre-wrap;
+    overflow-wrap:anywhere;background:var(--card2);border:1px solid var(--border);border-radius:6px;
+    font-family:inherit;line-height:1.6;
+  }
 
   .spinner{display:inline-block;width:13px;height:13px;border:2px solid var(--border);
     border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
@@ -364,6 +388,7 @@
   <symbol id="i-folder" viewBox="0 0 16 16"><path d="M1.6 3.4h4.2l1.5 2h7.1v7.3a.9.9 0 0 1-.9.9H2.5a.9.9 0 0 1-.9-.9z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></symbol>
   <symbol id="i-warn" viewBox="0 0 16 16"><path d="M8 2.3 15 13.6H1z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M8 6.5v3.1M8 11.5v.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
   <symbol id="i-bookmark" viewBox="0 0 16 16"><path d="M4.2 2.4h7.6v11.2L8 10.7l-3.8 2.9z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 16 16"><path d="M4 11.4V7.2a4 4 0 1 1 8 0v4.2l1.1 1.5H2.9z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M6.6 13.1a1.5 1.5 0 0 0 2.8 0" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></symbol>
   <symbol id="i-menu" viewBox="0 0 16 16"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
   <symbol id="i-moon" viewBox="0 0 16 16"><path d="M13 10.2A5.6 5.6 0 0 1 5.8 3a5.6 5.6 0 1 0 7.2 7.2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></symbol>
   <symbol id="i-sun" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.1" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.4v1.6M8 13v1.6M1.4 8h1.6M13 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M12.6 3.4l-1.1 1.1M4.5 11.5l-1.1 1.1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></symbol>
@@ -397,6 +422,14 @@
     </div>
   </form>
 </dialog>
+<dialog id="ask" aria-labelledby="askTitle">
+  <h2 id="askTitle">What is wrong<span id="askSrc"></span></h2>
+  <div id="askBody"></div>
+  <div class="dlg-actions">
+    <button type="button" class="btn" id="askCopy">copy</button>
+    <button type="button" class="btn primary" id="askClose">Close</button>
+  </div>
+</dialog>
 <main>
   <aside>
     <div class="head"><input type="search" id="svcFilter" placeholder="filter services…" aria-label="Filter services"></div>
@@ -404,6 +437,7 @@
       <button class="btn" id="selAll" title="Select all services matching the current filter">all</button>
       <button class="btn" id="selNone">none</button>
       <button class="btn" id="starOnly" aria-pressed="false" aria-label="Show starred services only" title="Show starred only">★</button>
+      <button class="btn" id="bell" aria-pressed="false" aria-label="Desktop notification when a starred service goes unhealthy" title="Notify me when a starred service goes unhealthy"><svg class="ico" aria-hidden="true"><use href="#i-bell"/></svg></button>
       <button class="btn" id="downOnly" aria-pressed="false" aria-label="Show unhealthy services only" title="Show unhealthy services only"><svg class="ico" aria-hidden="true"><use href="#i-warn"/></svg></button>
       <button class="btn" id="grpAdd" aria-label="Move the ticked services into a group" title="Move the ticked services into a group"><svg class="ico" aria-hidden="true"><use href="#i-folder"/></svg></button>
     </div>
@@ -439,6 +473,7 @@
       <button class="btn" id="autoscroll" aria-pressed="true">⤓ auto</button>
       <button class="btn" id="raw" aria-pressed="false" title="Show the untouched log line instead of the compact view">raw</button>
       <button class="btn" id="copy" title="Copy every line currently shown (level + text filters applied)">copy</button>
+      <button class="btn" id="askLogs" title="Ask Claude what these lines mean (the ones on screen, filters applied)">ask claude</button>
       <button class="btn" id="clear">clear</button>
     </div>
     <div class="pane" id="ciPane" hidden></div>
@@ -447,6 +482,7 @@
       <input type="search" id="prQ" placeholder="GitHub search: org:X is:pr is:open…" aria-label="Pull request search">
       <button class="btn" id="prMine" title="Pull requests you opened">mine</button>
       <button class="btn" id="prForMe" title="Pull requests waiting for your review">for me</button>
+      <label class="pr-all"><input type="checkbox" id="prAll" aria-label="Select every loaded pull request">all</label>
       <button class="btn" id="prApprove" disabled>approve</button>
       <button class="btn danger" id="prMerge" disabled>merge</button>
       <span class="count" id="prCount"></span>
@@ -456,6 +492,7 @@
       <br><span class="hint">double-click a line to copy it · click a traceId to isolate that flow</span></div></div>
   </section>
 </main>
+<button id="alertBar" hidden aria-live="assertive"></button>
 <script>
 const $ = s => document.querySelector(s);
 const state = { apps:[], health:{}, selected:new Set(), levels:new Set(["ERROR","WARN","INFO","DEBUG","TRACE"]),
@@ -464,6 +501,7 @@ const state = { apps:[], health:{}, selected:new Set(), levels:new Set(["ERROR",
   groups:JSON.parse(localStorage.getItem("devlogs.groups")||"{}"),
   pods:{}, ci:{}, ciBusy:new Set(), ciTab:false, repos:{org:"",map:{},repos:[],suggested:{}},
   muted:new Set(JSON.parse(localStorage.getItem("devlogs.muted")||"[]")),
+  notify:!!localStorage.getItem("devlogs.notify"),
   collapsed:new Set(JSON.parse(localStorage.getItem("devlogs.collapsed")||'["muted"]')) };
 function saveStars(){ localStorage.setItem("devlogs.starred", JSON.stringify([...state.starred])); }
 function saveGroups(){ localStorage.setItem("devlogs.groups", JSON.stringify(state.groups)); }
@@ -612,8 +650,45 @@ async function loadApps(quiet){
     state.labels = computeLabels(state.apps);
     apps.forEach(a => state.health[a.name] = a);
     renderSvc();
+    checkStarredDown();
   }catch(e){ if(!quiet) throw e; }
 }
+// A starred service turning red is the one thing here worth interrupting for. Transition only: one
+// that stays red must not re-fire every 30s, and the first poll only seeds — opening the page is
+// not news. Mute beats star, or silencing something noisy would not silence it.
+let downSeen = null, downUnseen = 0;
+function checkStarredDown(){
+  const now = new Set(state.apps.filter(a =>
+    state.starred.has(a) && !state.muted.has(a) && isDown(a)));
+  const fresh = downSeen === null ? [] : [...now].filter(a => !downSeen.has(a));
+  downSeen = now;
+  if(!fresh.length) return;
+  downUnseen += fresh.length;
+  const names = fresh.map(label).join(", ");
+  const bar = $("#alertBar");
+  bar.innerHTML = `<b>unhealthy</b> ${escapeHtml(names)}<br>tap to dismiss`;
+  bar.hidden = false;
+  document.title = `(${downUnseen}) DevLogs`;
+  if(state.notify && window.Notification && Notification.permission === "granted"){
+    new Notification("DevLogs", {body: names + " went unhealthy", tag: "devlogs-down"});
+  }
+}
+$("#alertBar").onclick = () => {
+  downUnseen = 0; document.title = "DevLogs"; $("#alertBar").hidden = true;
+};
+$("#bell").onclick = async e => {
+  const btn = e.currentTarget;
+  if(!state.notify && window.Notification && Notification.permission !== "granted"
+     && await Notification.requestPermission() !== "granted"){
+    flashBtn(btn, "blocked");
+    return;
+  }
+  state.notify = !state.notify;
+  localStorage.setItem("devlogs.notify", state.notify ? "1" : "");
+  btn.setAttribute("aria-pressed", String(state.notify));
+};
+$("#bell").setAttribute("aria-pressed", String(state.notify));
+
 // ---- pod counts: one resource-tree call per app, so only ask for the rows on screen ----
 // 500 apps in one batch is 500 HTTPS calls against a shared ArgoCD; the sidebar only ever shows
 // ~30 rows, so an IntersectionObserver keeps each refresh to one small batch.
@@ -892,7 +967,21 @@ function renderSvc(){
     el.append(grpHeader("muted", muted, "muted", false));
     if(!state.collapsed.has("muted")){
       const branch = document.createElement("div"); branch.className = "branch";
-      muted.forEach(a => branch.append(svcRow(a)));
+      const inMuted = new Set(muted);
+      // grpHeader already carries "unmute every service in this group"; it just never appeared in
+      // here, so muting a group cost one click and unmuting it cost one per service
+      for(const g of Object.keys(state.groups).sort()){
+        const members = state.groups[g].filter(a => inMuted.has(a));
+        if(!members.length) continue;
+        const key = "muted:" + g;
+        branch.append(grpHeader(g, members, key, false));
+        if(state.collapsed.has(key)) continue;
+        const sub = document.createElement("div"); sub.className = "branch";
+        sub.style.setProperty("--gc", grpHue(g));
+        members.forEach(a => sub.append(svcRow(a)));
+        branch.append(sub);
+      }
+      muted.filter(a => !groupOf(a)).forEach(a => branch.append(svcRow(a)));
       el.append(branch);
     }
   }
@@ -1294,14 +1383,16 @@ async function loadPrs(){
     if(d.error) throw new Error(d.error);
     state.prs = d.prs || [];
     state.prTotal = d.total || 0;
+    state.prPick.clear();   // a pick you can no longer see is a pick you cannot check before approving
     renderPrs();
   }catch(e){ $("#prPane").innerHTML = `<div class="empty">${escapeHtml(e.message || e)}</div>`; }
 }
+const prRef = p => `${p.repo}#${p.number}`;
 function renderPrs(){
   const el = $("#prPane");
   if(!state.prs.length){ el.innerHTML = '<div class="empty">No pull request matches.</div>'; return; }
   el.innerHTML = state.prs.map(p => {
-    const ref = `${p.repo}#${p.number}`;
+    const ref = prRef(p);
     // a four figure diff is not reviewable in a batch, and saying so is cheaper than regretting it
     const big = p.adds + p.dels > 1000;
     return `<div class="pr" data-ref="${escapeHtml(ref)}">`
@@ -1317,13 +1408,26 @@ function renderPrs(){
   }).join("");
   paintPrCount();
 }
+// The tools take refs[:MAX_PR_REFS] and drop the rest without a word (server.py). Hand-ticking 31
+// rows to find that out was unlikely; with a select-all it stops being unlikely, so say it here.
+const MAX_PR_BATCH = 30;
 function paintPrCount(){
-  const n = state.prPick.size;
-  $("#prCount").textContent = `${state.prs.length} of ${state.prTotal}${n ? ` · ${n} picked` : ""}`;
-  $("#prApprove").disabled = !n; $("#prMerge").disabled = !n;
+  const n = state.prPick.size, over = n > MAX_PR_BATCH;
+  $("#prCount").textContent = `${state.prs.length} of ${state.prTotal}`
+    + (n ? ` · ${n} picked${over ? `, ${MAX_PR_BATCH} max per batch` : ""}` : "");
+  $("#prCount").classList.toggle("over", over);
+  $("#prApprove").disabled = !n || over; $("#prMerge").disabled = !n || over;
   $("#prApprove").textContent = n ? `approve ${n}` : "approve";
   $("#prMerge").textContent = n ? `merge ${n}` : "merge";
+  const box = $("#prAll"), picked = loadedRefs().filter(r => state.prPick.has(r)).length;
+  box.checked = !!state.prs.length && picked === state.prs.length;
+  box.indeterminate = picked > 0 && picked < state.prs.length;
 }
+function loadedRefs(){ return state.prs.map(prRef); }
+$("#prAll").onchange = e => {
+  loadedRefs().forEach(r => e.target.checked ? state.prPick.add(r) : state.prPick.delete(r));
+  renderPrs();
+};
 $("#prPane").addEventListener("change", e => {
   const row = e.target.closest(".pr[data-ref]");
   if(!row || e.target.type !== "checkbox") return;
@@ -1429,7 +1533,8 @@ $("#prMerge").onclick = () => runPrAction("merge");
 // about.
 function showHealth(){
   showPane("diag");
-  const bad = state.apps.filter(isDown).sort((a,b) => label(a).localeCompare(label(b)));
+  const bad = state.apps.filter(a => isDown(a) && !state.muted.has(a))
+                        .sort((a,b) => label(a).localeCompare(label(b)));
   if(!bad.length){
     $("#diagPane").innerHTML = '<div class="empty">Nothing unhealthy right now.</div>';
     return;
@@ -1468,6 +1573,7 @@ function renderDiag(d){
   const head = `<div class="dg-head"><span class="dg-app">${escapeHtml(label(d.app))}</span>`
     + `<span class="pill ${d.health === "Healthy" ? "success" : "failure"}">${escapeHtml(d.health || "?")}</span>`
     + `<span class="ci-repo">${escapeHtml(d.sync || "")}</span>`
+    + `<button class="btn" id="diagAsk" data-app="${escapeHtml(d.app)}">ask claude</button>`
     + `<button class="btn" id="diagBack">all unhealthy</button></div>`;
   const conds = (d.conditions || []).map(c =>
     `<div class="dg-ev Warning"><span class="r">${escapeHtml(c.type)}</span>`
@@ -1684,6 +1790,35 @@ function flashBtn(btn, txt){
   btn.textContent = txt;
   btn._restore = setTimeout(() => { btn.textContent = btn._label; btn._restore = 0; }, 1200);
 }
+// ---- ask claude: what is wrong with this service ----
+// Two entry points, one endpoint. The health tab knows an app and lets the server fetch the
+// diagnosis; the logs pane knows what is on screen and sends that.
+async function askClaude(btn, apps, lines){
+  if(!apps.length){ flashBtn(btn, "pick a service"); return; }
+  const dlg = $("#ask");
+  $("#askTitle").firstChild.textContent = "What is wrong";
+  $("#askSrc").textContent = apps.length === 1 ? label(apps[0]) : apps.length + " services";
+  $("#askBody").innerHTML = '<span class="spinner"></span> reading…';
+  if(!dlg.open) dlg.showModal();
+  try{
+    const d = await post("/api/analyze", {apps, lines});
+    if(d.error) throw new Error(d.error);
+    $("#askBody").textContent = d.text || "(no answer)";
+    if(d.repo) $("#askSrc").textContent += " · read " + d.repo;
+  }catch(e){
+    $("#askBody").textContent = "failed: " + (e.message || e);
+  }
+}
+$("#askClose").onclick = () => $("#ask").close();
+$("#askCopy").onclick = async e => flashBtn(e.currentTarget,
+  await copyText($("#askBody").textContent) ? "copied" : "copy failed");
+$("#askLogs").onclick = e =>
+  askClaude(e.currentTarget, [...state.selected], state.buf.filter(rowVisible).map(o => o.line));
+$("#diagPane").addEventListener("click", e => {
+  const btn = e.target.closest("#diagAsk");
+  if(btn) askClaude(btn, [btn.dataset.app], []);
+});
+
 $("#copy").onclick = async e => {
   const btn = e.currentTarget;
   const lines = state.buf.filter(rowVisible).map(o => o.line);
