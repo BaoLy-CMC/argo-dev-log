@@ -262,6 +262,54 @@ def run_pr_tool(binary: str, refs: list, args: list, timeout=900) -> dict:
             "out": (r.stdout or "").strip(), "err": (r.stderr or "").strip()}
 
 
+HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
+
+
+def diff_lines(diff: str) -> dict:
+    """{path: {line numbers that GitHub will accept a comment on}}. The API rejects a comment on a
+    line outside the diff, so a finding pointing at an untouched line has to be caught here rather
+    than as a 422 halfway through posting a review."""
+    out, path, line = {}, None, 0
+    for row in diff.splitlines():
+        if row.startswith("+++ b/"):
+            path = row[6:].strip()
+            out.setdefault(path, set())
+        elif row.startswith("@@"):
+            m = HUNK_RE.match(row)
+            line = int(m.group(1)) if m else 0
+        elif path and line:
+            if row.startswith("+") or row.startswith(" "):
+                out[path].add(line)
+                line += 1
+            elif not row.startswith("-") and not row.startswith("\\"):
+                line += 1
+    return out
+
+
+def parse_findings(text: str, allowed: dict) -> list:
+    """Claude is asked for JSON. Keep what parses, and mark a finding whose line is not in the diff
+    as unpostable instead of dropping it — it may still be the most useful thing said."""
+    block = text[text.find("["):text.rfind("]") + 1] if "[" in text and "]" in text else ""
+    try:
+        raw = json.loads(block)
+    except ValueError:
+        return []
+    out = []
+    for f in raw if isinstance(raw, list) else []:
+        if not isinstance(f, dict) or not str(f.get("body", "")).strip():
+            continue
+        path = str(f.get("path", "")).strip().lstrip("/")
+        try:
+            line = int(f.get("line") or 0)
+        except (TypeError, ValueError):
+            line = 0
+        ok = bool(path) and line in allowed.get(path, set())
+        out.append({"path": path, "line": line, "severity": str(f.get("severity", ""))[:16],
+                    "body": str(f["body"]).strip()[:MAX_REVIEW_BODY], "postable": ok,
+                    "why": "" if ok else ("no such line in the diff" if path else "no file given")})
+    return out[:MAX_FINDINGS]
+
+
 def claude_review(repo: str, number: int) -> dict:
     """Hand the diff to the claude CLI already installed here: it reads the repo's own CLAUDE.md,
     which a bare API call would not, and the code stays on the path Claude Code already uses."""
@@ -269,14 +317,44 @@ def claude_review(repo: str, number: int) -> dict:
         raise RuntimeError(f"{CLAUDE} not found — set CLAUDE_BIN")
     diff = _gh(["pr", "diff", str(number), "--repo", repo], 90)[:MAX_DIFF_BYTES]
     if not diff.strip():
-        return {"review": "", "error": "empty diff"}
-    r = subprocess.run([CLAUDE, "-p"], input=REVIEW_PROMPT + "\n\n" + diff,
+        return {"review": "", "findings": [], "error": "empty diff"}
+    r = subprocess.run([CLAUDE, "-p"], input=FINDINGS_PROMPT + "\n\n" + diff,
                        capture_output=True, text=True, timeout=900)
     if r.returncode != 0:
         tail = (r.stderr or r.stdout).strip().splitlines()
         raise RuntimeError(tail[-1] if tail else "claude failed")
-    return {"review": (r.stdout or "").strip(), "bytes": len(diff),
-            "truncated": len(diff) >= MAX_DIFF_BYTES}
+    text = (r.stdout or "").strip()
+    return {"review": text, "findings": parse_findings(text, diff_lines(diff)),
+            "bytes": len(diff), "truncated": len(diff) >= MAX_DIFF_BYTES}
+
+
+def post_review(repo: str, number: int, findings: list, body: str, event: str) -> dict:
+    """One review with every comment attached, not a comment per call: a reviewer reading the PR
+    gets a single notification and the comments stay grouped."""
+    comments = []
+    for f in findings[:MAX_FINDINGS]:
+        path, text = str(f.get("path", "")), str(f.get("body", "")).strip()
+        try:
+            line = int(f.get("line") or 0)
+        except (TypeError, ValueError):
+            continue
+        if path and line > 0 and text:
+            comments.append({"path": path, "line": line, "side": "RIGHT",
+                             "body": text[:MAX_REVIEW_BODY]})
+    if not comments and not body.strip():
+        raise RuntimeError("nothing to post")
+    payload = {"event": event, "comments": comments}
+    if body.strip():
+        payload["body"] = body.strip()[:MAX_REVIEW_BODY]
+    r = subprocess.run([GH, "api", f"repos/{repo}/pulls/{number}/reviews",
+                        "--method", "POST", "--input", "-"],
+                       input=json.dumps(payload), capture_output=True, text=True, timeout=120)
+    if r.returncode != 0:
+        tail = (r.stderr or r.stdout).strip().splitlines()
+        raise RuntimeError(tail[-1] if tail else "gh api failed")
+    got = json.loads(r.stdout or "{}")
+    return {"ok": True, "url": got.get("html_url", ""), "posted": len(comments),
+            "state": got.get("state", "")}
 
 
 def workload_repo() -> str:
@@ -581,10 +659,19 @@ MAX_CI_LOG_LINES = 400
 PR_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}/[A-Za-z0-9][A-Za-z0-9._-]{0,99}#[1-9]\d{0,9}$")
 MAX_PR_REFS = 30  # a batch nobody can read the list of is a batch nobody should run
 MERGE_METHODS = ("squash", "merge", "rebase")
-REVIEW_PROMPT = ("Review this pull request diff against the conventions in CLAUDE.md. "
-                 "List only real defects, worst first, one line each, at most 8 lines. "
-                 'Answer "no defects found" if it is clean.')
+REVIEW_EVENTS = ("COMMENT", "REQUEST_CHANGES", "APPROVE")
+# Findings have to carry a file and a line, or they cannot become inline comments. The line is the
+# new-file line number, which is what the review API wants with side=RIGHT.
+FINDINGS_PROMPT = (
+    'Review this pull request diff. Reply with JSON only: a list of '
+    '{"path","line","severity","body"} objects, worst first, at most 8, no prose around it. '
+    '"path" is the file as it appears in the diff, "line" is a line number in the NEW file that '
+    'the diff touches, "severity" is one of high/medium/low, "body" is one or two sentences aimed '
+    'at the author. Judge against the conventions in CLAUDE.md. Report only real defects; reply [] '
+    'if the diff is clean.')
 MAX_DIFF_BYTES = 400_000  # a 3600-line PR is normal here; past this a review is worthless anyway
+MAX_REVIEW_BODY = 4000
+MAX_FINDINGS = 12
 MAX_WL_OPEN_PRS = 40  # the workload repo runs ~20 open PRs; 40 leaves headroom for one call
 MAX_DIAG_ITEMS = 8  # a broken rollout can leave dozens of failed resources; eight tells the story
 _pods = {}  # (domain, app) -> (fetched_at, {"ready": n, "total": n})
@@ -1067,9 +1154,33 @@ class Handler(BaseHTTPRequestHandler):
             args = ["--dry-run"] if plan else ["--yes"]
             if action == "merge":
                 args.append("--" + method)
+            note = str(body.get("body", "")).strip()[:MAX_REVIEW_BODY]
+            if action == "approve" and note and not plan:
+                args += ["--body", note]
             try:
                 got = run_pr_tool(APPROVE_BIN if action == "approve" else MERGE_BIN, refs, args)
                 self._send(200, {**got, "refs": refs, "plan": plan})
+            except Exception as e:  # noqa: BLE001
+                self._send(400, {"error": str(e)})
+            return
+        if self.path == "/api/pr-comment":
+            # the one place this tool writes to somebody else's pull request
+            body = self._body()
+            repo, number = str(body.get("repo", "")), str(body.get("number", ""))
+            event = str(body.get("event", "COMMENT"))
+            if not PR_REF_RE.match(f"{repo}#{number}"):
+                self._send(400, {"error": "bad repo or number"})
+                return
+            if event not in REVIEW_EVENTS:
+                self._send(400, {"error": "event must be one of " + ", ".join(REVIEW_EVENTS)})
+                return
+            findings = body.get("findings") or []
+            if not isinstance(findings, list):
+                self._send(400, {"error": "findings must be a list"})
+                return
+            try:
+                self._send(200, post_review(repo, int(number), findings,
+                                            str(body.get("body", "")), event))
             except Exception as e:  # noqa: BLE001
                 self._send(400, {"error": str(e)})
             return

@@ -81,13 +81,16 @@ Open pull requests, one GraphQL search, with the review decision and the diff si
 diff is printed bold: not something to approve inside a batch).
 
 - `claude` pipes the diff into the **local** `claude` CLI, so the review applies the conventions in
-  your `CLAUDE.md` and no API key is involved.
+  your `CLAUDE.md` and no API key is involved. It comes back as a checklist of findings, each with a
+  file and line; untick what you disagree with, pick `comment` or `request changes`, and they are
+  posted as **one** inline review. A finding whose line is not in the diff is shown but cannot be
+  posted inline — GitHub rejects those, so it is caught here instead of halfway through a review.
 - `approve` / `merge` run `tools/approve-prs.py` and `tools/merge-prs.py`, which ship with the repo
   and also work from the shell. A personal `~/bin/approve-prs.py` wins over the shipped copy, and
   `DEVLOGS_APPROVE_BIN` / `DEVLOGS_MERGE_BIN` win over both.
 - Both run `--dry-run` first and the confirmation dialog shows that output, so for a merge you see
-  which PRs the tool refuses and why. Over three PRs you type the action. There is no
-  approve-everything button.
+  which PRs the tool refuses and why. The dialog also takes an optional review comment. Over three
+  PRs you type the action. There is no approve-everything button.
 
 This tab needs no ArgoCD token; it only talks to `gh`.
 

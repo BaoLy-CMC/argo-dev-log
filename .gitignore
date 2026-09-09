@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 .devlogs-domains.json
 .devlogs-repos.json
+.finx/

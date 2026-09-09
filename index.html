@@ -44,6 +44,11 @@
     --spin-track:rgba(255,255,255,.45);
   }
   *{box-sizing:border-box}
+  /* Any class rule with `display` outranks the UA's [hidden]{display:none}, so setting el.hidden
+     in JS quietly did nothing three separate times (the ops row, the log toolbar, and the confirm
+     dialog's challenge box, which then asked you to type a word it was not showing). One rule
+     instead of remembering to pair every display rule with its own [hidden] variant. */
+  [hidden]{display:none !important}
   html,body{height:100%}
   body{
     margin:0; background:var(--bg); color:var(--fg);
@@ -104,14 +109,28 @@
   aside .head{padding:var(--sp3) var(--sp4);border-bottom:1px solid var(--border);display:flex;gap:var(--sp2);align-items:center}
   aside .head input{flex:1}
   .svc-actions{display:flex;gap:var(--sp2);padding:var(--sp2) var(--sp4);border-bottom:1px solid var(--border)}
-  .svc-actions[hidden]{display:none}   /* a class rule outranks the UA's [hidden] */
   .svc-actions .btn{padding:6px 8px;font-size:12px;flex:1;white-space:nowrap;min-height:30px;display:flex;align-items:center;justify-content:center;gap:4px}
+  /* what is streaming, without scrolling 500 rows to find the ticks. The row highlight only
+     helps while the row is on screen. */
+  .picked{display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:var(--sp2) var(--sp4);
+    border-bottom:1px solid var(--border);background:var(--card2);max-height:96px;overflow:auto}
+  .picked .lead{color:var(--muted);font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+    font-weight:700;margin-right:2px}
+  .chip{display:inline-flex;align-items:center;gap:5px;background:var(--card);color:var(--fg);
+    border:1px solid var(--border);border-radius:999px;padding:2px 4px 2px 7px;font-size:12px;
+    font-family:inherit;cursor:pointer;max-width:22ch}
+  .chip:hover{border-color:var(--err);color:var(--err)}
+  .chip .cdot{flex:0 0 7px;width:7px;height:7px;border-radius:2px}
+  .chip .cname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chip .cx{color:var(--icon);font-size:13px;line-height:1}
+  .chip:hover .cx{color:var(--err)}
+  .picked .clear{margin-left:auto;font-size:11px}
   .svc-list{overflow:auto;flex:1;padding:var(--sp2)}
   .svc{display:flex;align-items:center;gap:var(--sp2);padding:6px 8px;border-radius:6px;cursor:pointer;
     min-height:30px;position:relative}
   .svc:hover{background:var(--card2)}
-  .svc:has(input:checked){background:var(--sel-bg)}
-  .svc:has(input:checked) .name{color:var(--accent)}
+  .svc:has(input:checked){background:var(--sel-bg);box-shadow:inset 3px 0 0 var(--accent)}
+  .svc:has(input:checked) .name{color:var(--accent);font-weight:700}
   .svc input{accent-color:var(--accent);width:15px;height:15px;cursor:pointer}
   .svc .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .star{background:none;border:none;color:var(--icon);font-size:15px;line-height:1;
@@ -189,6 +208,20 @@
   .pill.CHANGES_REQUESTED{color:var(--err);border-color:var(--err)}
   .pr-out{margin:var(--sp2) 0;padding:8px 10px;background:var(--card2);border-radius:6px;
     white-space:pre-wrap;font-size:12px;max-height:40vh;overflow:auto}
+  .rv{white-space:normal}
+  .rv-head{display:flex;align-items:center;gap:var(--sp2);margin-bottom:var(--sp2)}
+  .rv-lead{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .rv-event{margin-left:auto}
+  .rv-item{display:flex;align-items:baseline;gap:var(--sp2);padding:4px 0;cursor:pointer;
+    border-top:1px solid var(--border)}
+  .rv-item.off{opacity:.6;cursor:default}
+  .rv-item input{accent-color:var(--accent);flex:0 0 auto;margin-top:3px}
+  .rv-sev{flex:0 0 7ch;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted)}
+  .rv-sev.high{color:var(--err)} .rv-sev.medium{color:var(--warn)}
+  .rv-where{flex:0 0 26ch;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rv-body{flex:1;min-width:0}
+  .rv-why{flex:0 0 auto;color:var(--muted);font-size:11px}
+  .rv-note{color:var(--muted);padding:2px 0;overflow-wrap:anywhere}
   /* in a narrow window the author and the age squeeze the title down to nothing; they are the
      two columns you can lose without losing the point of the row */
   @media (max-width:1240px){ .pr .who,.pr .age{display:none} }
@@ -250,7 +283,6 @@
   .tab[aria-selected=true]{color:var(--fg);border-bottom-color:var(--accent)}
   .tab-n{color:var(--err);font-weight:700}
   .toolbar{display:flex;gap:var(--sp2);align-items:center;padding:var(--sp2) var(--sp4);border-bottom:1px solid var(--border);background:var(--card2);flex-wrap:wrap}
-  .toolbar[hidden],.count[hidden]{display:none}   /* same trap as .svc-actions: the class wins */
   .toolbar input[type=search]{flex:1;min-width:160px}
   .lvl{display:flex;gap:2px}
   .lvl .btn{padding:6px 9px;font-size:12px}
@@ -355,6 +387,8 @@
     <p id="dlgWhat"></p>
     <p class="dlg-on">on <b id="dlgDomain"></b></p>
     <ul id="dlgList"></ul>
+    <label id="dlgBodyWrap" hidden>comment
+      <input type="text" id="dlgBody" autocomplete="off" placeholder="optional, posted with the review"></label>
     <label id="dlgChallengeWrap">type <b id="dlgWord"></b> to confirm
       <input type="text" id="dlgChallenge" autocomplete="off" spellcheck="false"></label>
     <div class="dlg-actions">
@@ -378,6 +412,7 @@
       <button class="btn" id="opSync" disabled title="argocd app sync --async: apply the git state to the cluster">sync</button>
       <button class="btn danger" id="opRestart" disabled title="argocd app actions run restart: restart the pods of every Deployment">restart</button>
     </div>
+    <div class="picked" id="picked" hidden></div>
     <div class="svc-list" id="svcList"><div class="svc-empty">Connect with a token to load services.</div></div>
   </aside>
   <section class="logs">
@@ -929,23 +964,29 @@ const OPS = {
   restart: {title:"Restart pods", what:"Restarts every Deployment of these services. In-flight requests are dropped.",
             challenge:"restart"},
 };
-function askConfirm({title, what, apps, challenge}){
+// Resolves false on cancel, otherwise {body} — the comment field is only shown when asked for.
+function askConfirm({title, what, apps, challenge, domain, body}){
   return new Promise(resolve => {
-    const dlg = $("#dlg"), inp = $("#dlgChallenge"), ok = $("#dlgOk");
+    const dlg = $("#dlg"), inp = $("#dlgChallenge"), ok = $("#dlgOk"), bodyInp = $("#dlgBody");
     $("#dlgTitle").textContent = title;
     $("#dlgWhat").textContent = what;
-    $("#dlgDomain").textContent = state.active || "this domain";
+    $("#dlgDomain").textContent = domain || state.active || "this domain";
     const ul = $("#dlgList"); ul.innerHTML = "";
     for(const a of apps){ const li = document.createElement("li"); li.textContent = a; ul.append(li); }
     $("#dlgWord").textContent = challenge;
     $("#dlgChallengeWrap").hidden = !challenge;
+    $("#dlgBodyWrap").hidden = !body;
+    bodyInp.value = ""; bodyInp.placeholder = typeof body === "string" ? body : "optional";
     inp.value = ""; ok.disabled = !!challenge;
     inp.oninput = () => ok.disabled = inp.value.trim() !== challenge;
     $("#dlgCancel").onclick = () => dlg.close("cancel");
-    dlg.onclose = () => { inp.oninput = null; dlg.onclose = null; resolve(dlg.returnValue === "ok"); };
+    dlg.onclose = () => {
+      inp.oninput = null; dlg.onclose = null;
+      resolve(dlg.returnValue === "ok" ? {body: bodyInp.value.trim()} : false);
+    };
     dlg.returnValue = "cancel";
     dlg.showModal();
-    (challenge ? inp : ok).focus();
+    (challenge ? inp : body ? bodyInp : ok).focus();
   });
 }
 function opNote(app, level, text){
@@ -970,8 +1011,30 @@ async function runOp(action, btn){
     opNote(apps[0], "ERROR", `${action} failed: ${e.message||e}`);
   }finally{ btn.textContent = label; syncOpButtons(); }
 }
+// One chip per streaming service, always on screen, click to drop it. The list is sorted by label
+// so a chip does not move when another is removed.
+function renderPicked(){
+  const el = $("#picked"), picked = [...state.selected].sort((a, b) => label(a).localeCompare(label(b)));
+  el.hidden = !picked.length;
+  if(!picked.length) return;
+  el.innerHTML = `<span class="lead">streaming ${picked.length}</span>`
+    + picked.map(a =>
+        `<button class="chip" data-drop="${escapeHtml(a)}" title="${escapeHtml(a)} — click to stop streaming it">`
+        + `<span class="cdot" style="background:${grpHue(a)}"></span>`
+        + `<span class="cname">${escapeHtml(label(a))}</span><span class="cx">×</span></button>`).join("")
+    + `<button class="btn clear" id="pickedNone">none</button>`;
+  $("#pickedNone").onclick = () => { state.selected.clear(); renderSvc(); restream(); };
+}
+$("#picked").addEventListener("click", e => {
+  const chip = e.target.closest("button[data-drop]");
+  if(!chip) return;
+  state.selected.delete(chip.dataset.drop);
+  renderSvc(); restream();
+});
+
 function syncOpButtons(){
   $("#ops").hidden = !state.selected.size;
+  renderPicked();
   const none = !state.selected.size;
   ["opRefresh","opSync","opRestart"].forEach(id => { $("#"+id).disabled = none; });
 }
@@ -1232,19 +1295,68 @@ $("#prPane").addEventListener("change", e => {
   e.target.checked ? state.prPick.add(row.dataset.ref) : state.prPick.delete(row.dataset.ref);
   paintPrCount();
 });
+// The review is a proposal, not an action: findings land here as a checklist, and nothing reaches
+// GitHub until you untick what you disagree with and confirm.
+function renderFindings(box, repo, number, d){
+  const list = d.findings || [];
+  if(!list.length){
+    box.innerHTML = `<div class="rv-note">${escapeHtml(d.review || "(no output)")}</div>`
+      + (d.truncated ? '<div class="rv-note">the diff was truncated before the review</div>' : "");
+    return;
+  }
+  box.dataset.repo = repo; box.dataset.number = number;
+  box._findings = list;
+  box.innerHTML = `<div class="rv-head">`
+      + `<span class="rv-lead">${list.length} finding${list.length > 1 ? "s" : ""}</span>`
+      + `<select class="rv-event" aria-label="Review type">`
+      + `<option value="COMMENT">comment</option>`
+      + `<option value="REQUEST_CHANGES">request changes</option></select>`
+      + `<button class="btn danger rv-post">post to GitHub</button></div>`
+    + list.map((f, i) =>
+        `<label class="rv-item${f.postable ? "" : " off"}">`
+        + `<input type="checkbox" data-i="${i}"${f.postable ? " checked" : " disabled"}>`
+        + `<span class="rv-sev ${escapeHtml((f.severity || "").toLowerCase())}">${escapeHtml(f.severity || "?")}</span>`
+        + `<span class="rv-where">${escapeHtml(f.path || "—")}${f.line ? ":" + f.line : ""}</span>`
+        + `<span class="rv-body">${escapeHtml(f.body)}</span>`
+        + (f.postable ? "" : `<span class="rv-why">${escapeHtml(f.why)} — not postable inline</span>`)
+        + `</label>`).join("");
+}
 $("#prPane").addEventListener("click", async e => {
   const btn = e.target.closest("button[data-review]");
-  if(!btn) return;
-  const [repo, number] = btn.dataset.review.split("#");
-  const box = document.createElement("pre"); box.className = "pr-out";
-  box.textContent = "claude is reading the diff… (a big PR takes a while)";
-  btn.closest(".pr").after(box);
-  flashBtn(btn, "…");
-  try{
-    const d = await post("/api/pr-review", {repo, number});
-    box.textContent = d.error ? "failed: " + d.error
-      : (d.review || "(no output)") + (d.truncated ? "\n\n[diff truncated before the review]" : "");
-  }catch(err){ box.textContent = "failed: " + (err.message || err); }
+  if(btn){
+    const [repo, number] = btn.dataset.review.split("#");
+    const box = document.createElement("div"); box.className = "pr-out rv";
+    box.innerHTML = '<div class="rv-note"><span class="spinner"></span> claude is reading the diff…</div>';
+    btn.closest(".pr").after(box);
+    flashBtn(btn, "…");
+    try{
+      const d = await post("/api/pr-review", {repo, number});
+      if(d.error) box.innerHTML = `<div class="rv-note">failed: ${escapeHtml(d.error)}</div>`;
+      else renderFindings(box, repo, number, d);
+    }catch(err){ box.innerHTML = `<div class="rv-note">failed: ${escapeHtml(err.message || err)}</div>`; }
+    return;
+  }
+  const post_ = e.target.closest("button.rv-post");
+  if(!post_) return;
+  const box = post_.closest(".rv"), repo = box.dataset.repo, number = box.dataset.number;
+  const event = box.querySelector(".rv-event").value;
+  const picked = [...box.querySelectorAll('input[type=checkbox]:checked')]
+    .map(c => box._findings[+c.dataset.i]).filter(Boolean);
+  if(!picked.length){ flashBtn(post_, "nothing ticked"); return; }
+  const ok = await askConfirm({
+    title: event === "REQUEST_CHANGES" ? "Request changes" : "Post review comments",
+    what: `Posts ${picked.length} inline comment${picked.length > 1 ? "s" : ""} on `
+          + `${repo}#${number} as one review, under your GitHub account.`,
+    apps: picked.map(f => `${f.path}:${f.line} — ${f.body.slice(0, 90)}`),
+    domain: "github.com", body: "optional summary for the review as a whole"});
+  if(!ok) return;
+  flashBtn(post_, "posting…");
+  const d = await post("/api/pr-comment", {repo, number, event, findings: picked, body: ok.body});
+  const note = document.createElement("div"); note.className = "rv-note";
+  note.textContent = d.error ? "failed: " + d.error
+    : `posted ${d.posted} comment${d.posted === 1 ? "" : "s"} (${d.state || event}) — ${d.url}`;
+  box.append(note);
+  if(!d.error) box.querySelectorAll(".rv-post,.rv-event").forEach(el => el.disabled = true);
 });
 // Two phases on purpose: the dry-run tells you what the tools would do — including which PRs the
 // merge tool refuses and why — and only then is there something worth confirming.
@@ -1260,12 +1372,13 @@ async function runPrAction(action){
     what: action === "approve"
       ? "Adds your approval to every pull request listed below, under your GitHub account."
       : "Squash-merges the ones the merge tool reports as ready. It refuses the rest.",
-    apps: lines, challenge: refs.length > 3 ? action : ""});
+    apps: lines, domain: "github.com", challenge: refs.length > 3 ? action : "",
+    body: action === "approve" ? "optional review comment, e.g. LGTM" : false});
   if(!ok) return;
   const box = document.createElement("pre"); box.className = "pr-out";
   box.textContent = action + " running…";
   $("#prPane").prepend(box);
-  const d = await post("/api/pr-run", {action, refs, method:"squash"});
+  const d = await post("/api/pr-run", {action, refs, method:"squash", body: ok.body});
   box.textContent = d.error ? "failed: " + d.error : ((d.out || "") + "\n" + (d.err || "")).trim();
   state.prPick.clear();
   loadPrs();

@@ -166,6 +166,80 @@ def test_workload_paths_read_the_manifest_names_and_skip_exclude():
     assert found == {"vikki-mobile-dev-party-service": "vikki-mobile/dev/party-service"}, found
 
 
+DIFF = """diff --git a/src/A.java b/src/A.java
+--- a/src/A.java
++++ b/src/A.java
+@@ -10,6 +10,8 @@ class A {
+     void a() {
+-        old();
++        log.error("boom");
++        throw new X();
+     }
+ }
+diff --git a/src/B.java b/src/B.java
+--- a/src/B.java
++++ b/src/B.java
+@@ -100,3 +101,4 @@
++    int b = 1;
+"""
+
+
+def test_only_lines_inside_the_diff_can_be_commented_on():
+    allowed = server.diff_lines(DIFF)
+    assert sorted(allowed["src/A.java"]) == [10, 11, 12, 13, 14], allowed
+    assert sorted(allowed["src/B.java"]) == [101], allowed
+    assert "-        old();" not in DIFF.splitlines()[0], "sanity"
+
+
+def test_findings_survive_prose_and_mark_unpostable_lines():
+    allowed = server.diff_lines(DIFF)
+    text = ('Sure, here you go:\n'
+            '[{"path":"src/A.java","line":12,"severity":"high","body":"log-and-throw"},'
+            ' {"path":"src/A.java","line":999,"severity":"low","body":"line not in the diff"},'
+            ' {"path":"","line":3,"severity":"low","body":"no file"},'
+            ' {"path":"src/A.java","line":11,"severity":"low","body":"  "},'
+            ' {"path":"src/B.java","line":101,"severity":"medium","body":"magic number"}]')
+    got = server.parse_findings(text, allowed)
+    assert [f["line"] for f in got] == [12, 999, 3, 101], "an empty body is dropped, the rest kept"
+    assert [f["postable"] for f in got] == [True, False, False, True], got
+    assert got[1]["why"] == "no such line in the diff"
+    assert got[2]["why"] == "no file given"
+    assert server.parse_findings("no defects found", allowed) == [], "prose is not a finding"
+
+
+def test_review_payload_keeps_only_usable_comments():
+    sent = {}
+
+    def fake_run(cmd, **kw):
+        sent["cmd"] = cmd
+        sent["payload"] = json.loads(kw["input"])
+        return type("R", (), {"returncode": 0, "stdout": '{"html_url":"u","state":"COMMENTED"}',
+                              "stderr": ""})()
+
+    real, server.subprocess.run = server.subprocess.run, fake_run
+    try:
+        got = server.post_review("o/r", 7, [
+            {"path": "src/A.java", "line": 12, "body": "real"},
+            {"path": "src/A.java", "line": 0, "body": "no line"},
+            {"path": "", "line": 5, "body": "no path"},
+            {"path": "src/A.java", "line": "x", "body": "line not a number"},
+        ], "summary", "REQUEST_CHANGES")
+        assert got["posted"] == 1, sent["payload"]
+        assert sent["payload"]["comments"] == [
+            {"path": "src/A.java", "line": 12, "side": "RIGHT", "body": "real"}], sent["payload"]
+        assert sent["payload"]["event"] == "REQUEST_CHANGES"
+        assert sent["payload"]["body"] == "summary"
+        assert "repos/o/r/pulls/7/reviews" in sent["cmd"], sent["cmd"]
+        try:
+            server.post_review("o/r", 7, [{"path": "", "line": 0, "body": "x"}], "  ", "COMMENT")
+        except RuntimeError as e:
+            assert "nothing to post" in str(e)
+        else:
+            raise AssertionError("a review with no comment and no body must not be posted")
+    finally:
+        server.subprocess.run = real
+
+
 def test_pr_tools_fall_back_to_the_copy_in_the_repo():
     """A teammate cloning this repo has no ~/bin, and the approve/merge buttons must still work."""
     env, home = "DEVLOGS_APPROVE_BIN", os.path.expanduser("~/bin/approve-prs.py")
@@ -405,6 +479,9 @@ if __name__ == "__main__":
     test_token_expiry_is_read_from_the_token_itself()
     test_env_leaves_the_cli_session_alone_when_no_token()
     test_workload_paths_read_the_manifest_names_and_skip_exclude()
+    test_only_lines_inside_the_diff_can_be_commented_on()
+    test_findings_survive_prose_and_mark_unpostable_lines()
+    test_review_payload_keeps_only_usable_comments()
     test_pr_tools_fall_back_to_the_copy_in_the_repo()
     test_open_workload_prs_match_the_exact_directory()
     test_repo_suggestion_is_exact_suffix_only()
