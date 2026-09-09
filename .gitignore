@@ -3,3 +3,4 @@ __pycache__/
 .devlogs-domains.json
 .devlogs-repos.json
 .finx/
+.playwright-mcp/

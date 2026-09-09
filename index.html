@@ -459,7 +459,7 @@
 <script>
 const $ = s => document.querySelector(s);
 const state = { apps:[], health:{}, selected:new Set(), levels:new Set(["ERROR","WARN","INFO","DEBUG","TRACE"]),
-  tail:true, autoscroll:true, raw:false, tokenExp:0, cliSession:false, grep:"", es:null, buf:[], MAX:5000,
+  tail:true, autoscroll:true, raw:false, tokenExp:0, cliSession:false, hasToken:false, grep:"", es:null, buf:[], MAX:5000,
   labels:{}, domains:[], active:"", pane:"logs", prs:[], prTotal:0, prPick:new Set(), starred:new Set(JSON.parse(localStorage.getItem("devlogs.starred")||"[]")), starOnly:false, downOnly:false,
   groups:JSON.parse(localStorage.getItem("devlogs.groups")||"{}"),
   pods:{}, ci:{}, ciBusy:new Set(), ciTab:false, repos:{org:"",map:{},repos:[],suggested:{}},
@@ -524,6 +524,7 @@ function renderDomains(d){
   const act = d.domains.find(x => x.domain === d.active) || {};
   state.tokenExp = act.exp || 0;
   state.cliSession = !!act.cliSession;
+  state.hasToken = !!act.hasToken;
   paintExpiry();
   return true;
 }
@@ -592,6 +593,7 @@ async function connect(){
     $("#token").value = "";
     await loadDomains();
     await loadApps();
+    if(retryTimer){ clearTimeout(retryTimer); retryTimer = null; retryIn = 0; openStream(); }
   }catch(e){
     setStatus("rejected: "+(e.message||e),"err");
     $("#svcList").innerHTML = '<div class="svc-empty">Connect with a token to load services.</div>';
@@ -1061,19 +1063,52 @@ $("#navToggle").onclick = e => {
 $("#grep").oninput = e => { state.grep = e.target.value.toLowerCase(); applyFilter(); };
 
 // ---- SSE stream ----
-function stopStream(){ if(state.es){ state.es.close(); state.es=null; } setStatus(state.selected.size+" selected","on"); }
+// EventSource heals a dropped connection on its own, but a restarted server has no token any more,
+// answers 400, and leaves it CLOSED for good — the page then looks connected and never says
+// otherwise. So: our own backoff, re-reading /api/domains each round, because the thing being
+// waited for is a token coming back. The selection survives, so a new paste resumes it without F5.
+let retryIn = 0, retryTimer = null, streamDomain = "";
+function stopStream(){
+  clearTimeout(retryTimer); retryTimer = null; retryIn = 0;
+  if(state.es){ state.es.close(); state.es=null; }
+  setStatus(state.selected.size+" selected","on");
+}
 function restream(){
   syncOpButtons();
   if(state.ciTab) loadCi();
   stopStream();
+  openStream();
+}
+function openStream(){
   if(!state.tail || !state.selected.size) return;
+  streamDomain = state.active;
   const apps = [...state.selected].join(",");
   const es = new EventSource("/api/stream?apps="+encodeURIComponent(apps));
   state.es = es;
   setStatus("streaming "+state.selected.size,"on");
-  es.onmessage = ev => addLine(JSON.parse(ev.data));
-  es.onerror = () => setStatus("stream error (token expired?)","err");
+  es.onmessage = ev => { retryIn = 0; addLine(JSON.parse(ev.data)); };
+  es.onerror = () => {
+    if(es.readyState !== EventSource.CLOSED) return;   // the browser is retrying by itself
+    es.close();
+    if(state.es !== es) return;                        // already replaced by a newer stream
+    state.es = null;
+    scheduleRetry();
+  };
 }
+function scheduleRetry(){
+  if(retryTimer || !state.tail || !state.selected.size) return;
+  retryIn = Math.min(retryIn ? retryIn * 2 : 1000, 30000);
+  retryTimer = setTimeout(async () => {
+    retryTimer = null;
+    // a restarted server starts on the first domain in its list, not the one being streamed
+    if(streamDomain && streamDomain !== state.active) await post("/api/domain", {domain: streamDomain});
+    await loadDomains();
+    if(tokenUsable()) openStream(); else scheduleRetry();
+  }, retryIn);
+  setStatus(tokenUsable() ? "stream lost — retrying in "+Math.round(retryIn/1000)+"s"
+                          : "no token for "+state.active+" — paste one to resume", "err");
+}
+function tokenUsable(){ return state.hasToken && !(state.tokenExp && state.tokenExp * 1000 <= Date.now()); }
 
 function escapeHtml(s){ return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
 function unescapeHtml(s){ return s.replace(/&(amp|lt|gt);/g,(_,e)=>({amp:"&",lt:"<",gt:">"}[e])); }
