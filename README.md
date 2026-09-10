@@ -69,7 +69,12 @@ Muted services are muted here too, and stop counting against the tab badge.
 ### ci
 
 GitHub Actions for the ticked services, default branch only. Per workflow: the latest run and, when
-red, the commit that broke it plus that job's failing log. Below it, the deploy history from the
+red, the commit that broke it plus that job's failing log.
+
+A monorepo — several deployables in one repo, each with its own workflows — shows each app only the
+workflows that build *its* image, read from the `image_name` the workflow declares. Ones that
+declare none are shared and always show. A repo that builds a single image two apps both deploy is
+not filtered: that is one CI, deployed twice. Below it, the deploy history from the
 GitOps repo — the app → directory mapping is read from each `.argocd-source-<app>.yaml`, so it is
 exact rather than guessed.
 
@@ -101,6 +106,10 @@ Needs no ArgoCD token; only `gh`.
 
 The bell alerts when a **starred** service turns red — once per transition, desktop notification if
 you grant permission. Mute beats star, and it only fires while the tab is open: a nudge, not a pager.
+
+It also alerts when the default branch goes red right after a pull request **you** wrote or merged —
+nobody else is going to fix that one. Once per merge commit, remembered across reloads rather than
+reset by them, three days back, every repo in one search. Needs `gh`, not an ArgoCD token.
 
 ## Notes
 

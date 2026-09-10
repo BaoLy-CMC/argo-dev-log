@@ -73,8 +73,13 @@ CI của service đang tick, **chỉ nhánh chính**. Mỗi workflow: run mới 
 **commit làm vỡ** kèm log của job fail. Bên dưới là lịch sử deploy trong repo GitOps của chính
 service đó.
 
+Monorepo (nhiều service chung một repo, ví dụ `galaxy-g-bff-service` với `mobile-service` và
+`web-service`) thì mỗi app chỉ thấy workflow build đúng image của nó, đọc từ `image_name` trong
+chính file workflow. Workflow không khai `image_name` là dùng chung, luôn hiện. Repo chỉ build một
+image mà hai app cùng deploy thì không lọc gì — đó là hai lần deploy của cùng một CI.
+
 Link service với repo một lần. Gợi ý chỉ hiện khi tên khớp chính xác — đoán mò sẽ chỉ CI của repo
-team khác.
+team khác. Monorepo thì tên app không khớp hậu tố repo, phải chọn tay một lần.
 
 ## Tab `prs`
 
@@ -108,7 +113,7 @@ Tab này không cần token ArgoCD, chỉ cần `gh`.
 | `★` | ghim service |
 | `⊘` | ẩn service xuống folder `muted` ở đáy |
 | `⊘` trên tên group | mute cả group — và **gỡ mute cả group bằng một cú bấm** |
-| chuông | báo khi service đã ghim chuyển đỏ |
+| chuông | báo khi service đã ghim chuyển đỏ, hoặc CI nhánh chính đỏ sau PR của bạn |
 | nháy đúp dòng log | copy dòng đó |
 
 Tick service thì hàng `refresh` / `sync` / `restart` mới hiện. `restart` bắt gõ chữ để xác nhận.
@@ -116,3 +121,7 @@ Tick service thì hàng `refresh` / `sync` / `restart` mới hiện. `restart` b
 Chuông chỉ kêu **một lần mỗi lần chuyển trạng thái**, không kêu lại mỗi 30 giây khi service vẫn
 đang đỏ, và không kêu cho service đã mute — mute thắng ghim. Cho phép notification thì có thông báo
 desktop. Nó chỉ sống khi tab còn mở: để nhắc, không phải hệ thống trực.
+
+Chuông cũng kêu khi nhánh mặc định đỏ ngay sau một PR **bạn viết hoặc bạn bấm merge** — không ai
+khác đi sửa cái đó. Một lần cho mỗi merge commit, nhớ qua cả F5, quét ba ngày gần nhất, mọi repo
+trong một query. Không cần token ArgoCD, chỉ cần `gh`.

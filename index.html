@@ -508,6 +508,7 @@ function saveGroups(){ localStorage.setItem("devlogs.groups", JSON.stringify(sta
 function saveMuted(){ localStorage.setItem("devlogs.muted", JSON.stringify([...state.muted])); }
 function saveCollapsed(){ localStorage.setItem("devlogs.collapsed", JSON.stringify([...state.collapsed])); }
 const HEALTH_MS = 30000;
+const MERGE_MS = 120000;
 
 function healthOf(a){ return state.health[a] || {health:"Unknown", sync:"Unknown", syncedAt:""}; }
 function ago(iso){
@@ -657,21 +658,44 @@ async function loadApps(quiet){
 // that stays red must not re-fire every 30s, and the first poll only seeds — opening the page is
 // not news. Mute beats star, or silencing something noisy would not silence it.
 let downSeen = null, downUnseen = 0;
+function raiseAlert(html, body, tag, n){
+  downUnseen += n;
+  const bar = $("#alertBar");
+  bar.innerHTML = html + "<br>tap to dismiss";
+  bar.hidden = false;
+  document.title = `(${downUnseen}) DevLogs`;
+  if(state.notify && window.Notification && Notification.permission === "granted"){
+    new Notification("DevLogs", {body, tag});
+  }
+}
 function checkStarredDown(){
   const now = new Set(state.apps.filter(a =>
     state.starred.has(a) && !state.muted.has(a) && isDown(a)));
   const fresh = downSeen === null ? [] : [...now].filter(a => !downSeen.has(a));
   downSeen = now;
   if(!fresh.length) return;
-  downUnseen += fresh.length;
   const names = fresh.map(label).join(", ");
-  const bar = $("#alertBar");
-  bar.innerHTML = `<b>unhealthy</b> ${escapeHtml(names)}<br>tap to dismiss`;
-  bar.hidden = false;
-  document.title = `(${downUnseen}) DevLogs`;
-  if(state.notify && window.Notification && Notification.permission === "granted"){
-    new Notification("DevLogs", {body: names + " went unhealthy", tag: "devlogs-down"});
-  }
+  raiseAlert(`<b>unhealthy</b> ${escapeHtml(names)}`, names + " went unhealthy",
+             "devlogs-down", fresh.length);
+}
+// The other thing worth interrupting for: the default branch red right after one of my own merges.
+// Nobody else is going to fix that one. Seen merge commits persist, so it fires once per commit
+// rather than once per page load — a break from yesterday is still mine and still unfixed.
+let mergeSeen = new Set(JSON.parse(localStorage.getItem("devlogs.mergeSeen") || "[]"));
+async function checkMyMerges(){
+  let red;
+  try{
+    const r = await fetch("/api/my-ci"); const d = await r.json();
+    if(d.error) return;            // no gh, no network: an alert nobody can act on is noise
+    red = d.red || [];
+  }catch(e){ return; }
+  const fresh = red.filter(p => !mergeSeen.has(p.sha));
+  mergeSeen = new Set([...red.map(p => p.sha), ...mergeSeen].slice(0, 200));
+  localStorage.setItem("devlogs.mergeSeen", JSON.stringify([...mergeSeen]));
+  if(!fresh.length) return;
+  const names = fresh.map(p => `${p.repo.split("/")[1]} #${p.number}`).join(", ");
+  raiseAlert(`<b>${escapeHtml(fresh[0].branch || "main")} red</b> after your merge: ${escapeHtml(names)}`,
+             names + " broke the branch you merged into", "devlogs-merge", fresh.length);
 }
 $("#alertBar").onclick = () => {
   downUnseen = 0; document.title = "DevLogs"; $("#alertBar").hidden = true;
@@ -735,6 +759,10 @@ setInterval(() => {
   loadApps(true);
   podQueue = new Set(podSeen); schedulePods();
 }, HEALTH_MS);
+// Its own clock, and a slower one: this needs gh rather than an ArgoCD token, and a merge lands
+// nowhere near as often as a pod flips.
+checkMyMerges();
+setInterval(checkMyMerges, MERGE_MS);
 
 // F5 only clears the browser; the token still sits in the server's memory, so ask before nagging
 // for a fresh paste. Nothing is written to localStorage — a credential belongs on disk never.

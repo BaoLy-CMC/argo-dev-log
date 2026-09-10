@@ -296,6 +296,57 @@ def test_first_breakage_is_the_oldest_failure_at_the_head():
         "a cancelled run is a human pressing stop, not a broken build"
 
 
+def test_a_monorepo_app_only_sees_the_workflows_that_build_it():
+    server._wf_builds["bff"] = (time.time(), {
+        "CI mobile-service for SIT env": "galaxy-g-bff-mobile-service",
+        "CI mobile-service for STG env": "galaxy-g-bff-mobile-service",
+        "CI web-service for SIT env": "galaxy-g-bff-web-service"})
+    names = ["CI mobile-service for SIT env", "CI mobile-service for STG env",
+             "CI web-service for SIT env", "CI for PROD env"]
+    try:
+        got = server.app_workflows("vikki-mobile-fsap-galaxy-g-bff-mobile-service", "bff", names)
+        assert got == ["CI mobile-service for SIT env", "CI mobile-service for STG env",
+                       "CI for PROD env"], got
+        assert server.app_workflows("vikki-mobile-fsap-smile-living-gw", "bff", names) == names, \
+            "no image matches this app, and an empty card reads as 'no CI' rather than 'not mine'"
+        server._wf_builds["gw"] = (time.time(), {"CI for FSAP env - dev": "api-gateway-service"})
+        assert server.app_workflows("vikki-dev-api-gateway-service", "gw",
+                                    ["CI for FSAP env - dev"]) == ["CI for FSAP env - dev"], \
+            "one image is one deployable — two apps off it are two deployments of the same CI"
+    finally:
+        server._wf_builds.clear()
+
+
+def test_only_my_own_red_merges_are_alerted_on():
+    def pr(number, state, author="me", merged_by="me"):
+        rollup = {"state": state} if state else None
+        return {"number": number, "title": "t", "url": "u", "baseRefName": "main",
+                "mergedAt": "2026-09-10T00:00:00Z", "repository": {"nameWithOwner": "o/r"},
+                "author": {"login": author}, "mergedBy": {"login": merged_by},
+                "mergeCommit": {"oid": f"sha{number}", "url": "c",
+                                "statusCheckRollup": rollup}}
+    payload = {"viewer": {"login": "me"},
+               "search": {"nodes": [
+                   pr(1, "FAILURE"),
+                   pr(2, "SUCCESS"),
+                   pr(3, "PENDING"),
+                   pr(4, None),                                   # repo runs no checks at all
+                   pr(5, "FAILURE", author="other"),              # I merged someone else's work
+                   pr(6, "FAILURE", author="other", merged_by="other"),  # only commented on it
+                   pr(7, "ERROR"),
+                   None]}}                                        # a non-PR search hit
+    old, server._gh = server._gh, lambda *a, **k: json.dumps(payload)
+    server._mine[:] = [0, {}]
+    try:
+        got = server.merged_ci()
+    finally:
+        server._gh = old
+        server._mine[:] = [0, {}]
+    assert got["me"] == "me"
+    assert [p["number"] for p in got["red"]] == [1, 5, 7], got["red"]
+    assert got["red"][0]["sha"] == "sha1"
+
+
 def test_argocd_errors_are_not_mistaken_for_logs():
     """All four of these came back as the log body of a genuinely broken pod."""
     for junk in ['previous terminated container "svc" in pod "svc-abc" not found',

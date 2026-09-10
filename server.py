@@ -98,6 +98,8 @@ _workload = [0, {}]  # fetched_at, {argocd app name: its directory in the worklo
 _apps = [0, "", []]  # fetched_at, domain, apps
 _runs = {}  # repo -> (fetched_at, runs)
 _wl_open = [0, []]  # fetched_at, open PRs of the workload repo (shared by every service card)
+_mine = [0, {}]  # fetched_at, the red merges of the signed-in user
+_wf_builds = {}  # repo -> (fetched_at, {workflow name: the image it builds})
 
 
 def _load_domains():
@@ -247,6 +249,51 @@ def pr_inbox(query: str, limit=50) -> dict:
                     "at": n.get("updatedAt", ""), "adds": n.get("additions", 0),
                     "dels": n.get("deletions", 0), "files": n.get("changedFiles", 0)})
     return {"total": got.get("issueCount", 0), "prs": out}
+
+
+GQL_MERGED = """query($q:String!,$n:Int!){
+  viewer{ login }
+  search(query:$q, type:ISSUE, first:$n){
+    nodes{ ... on PullRequest {
+      number title url mergedAt baseRefName
+      repository{ nameWithOwner } author{ login } mergedBy{ login }
+      mergeCommit{ oid url statusCheckRollup{ state } }
+    } }
+  }
+}"""
+RED_ROLLUP = {"FAILURE", "ERROR"}
+MERGE_DAYS = 3  # older than that, the branch has moved on and nobody is going back to fix that run
+
+
+def merged_ci(days=MERGE_DAYS, limit=40) -> dict:
+    """The default branch right after my own merges, across every repo in one search. The merge
+    commit's check rollup *is* the CI run on the base branch, so no `gh run list` sweep — and that
+    command carries no actor to filter a sweep by anyway."""
+    if time.time() - _mine[0] < RUN_TTL:
+        return _mine[1]
+    since = time.strftime("%Y-%m-%d", time.gmtime(time.time() - days * 86400))
+    raw = _gh(["api", "graphql", "-f", "query=" + GQL_MERGED,
+               "-F", f"q=is:pr is:merged involves:@me merged:>={since}",
+               "-F", f"n={min(limit, 100)}", "--jq", ".data"], 60)
+    got = json.loads(raw or "{}")
+    me = (got.get("viewer") or {}).get("login", "")
+    out = []
+    for n in ((got.get("search") or {}).get("nodes") or []):
+        if not n:
+            continue
+        commit = n.get("mergeCommit") or {}
+        # null rather than a state wherever the repo runs no checks at all, the workload repo included
+        if ((commit.get("statusCheckRollup") or {}).get("state")) not in RED_ROLLUP:
+            continue
+        if me not in ((n.get("author") or {}).get("login"), (n.get("mergedBy") or {}).get("login")):
+            continue
+        out.append({"repo": (n.get("repository") or {}).get("nameWithOwner", ""),
+                    "number": n.get("number"), "title": n.get("title", ""),
+                    "url": n.get("url", ""), "branch": n.get("baseRefName", ""),
+                    "at": n.get("mergedAt", ""), "sha": commit.get("oid", ""),
+                    "commitUrl": commit.get("url", "")})
+    _mine[0], _mine[1] = time.time(), {"me": me, "red": out}
+    return _mine[1]
 
 
 def pr_refs(raw: list) -> list:
@@ -611,6 +658,54 @@ def with_pr(run: dict) -> dict:
     return {**run, "pr": found[-1] if found else ""}
 
 
+GQL_WORKFLOWS = """query($o:String!,$r:String!){
+  repository(owner:$o, name:$r){
+    object(expression:"HEAD:.github/workflows"){
+      ... on Tree { entries{ name object{ ... on Blob { text } } } }
+    }
+  }
+}"""
+WF_NAME_RE = re.compile(r"^name:[ \t]*[\"']?(.+?)[\"']?[ \t]*$", re.M)
+# a monorepo workflow names the image it builds; a single-service one interpolates the repo name
+WF_IMAGE_RE = re.compile(r"^[ \t]+image_name:[ \t]*[\"']?([A-Za-z0-9][A-Za-z0-9._-]*)[\"']?[ \t]*$",
+                         re.M)
+
+
+def repo_builds(repo: str) -> dict:
+    """{workflow display name: the image that workflow builds}, for those that name one. A monorepo
+    gives each deployable its own workflow off the same default branch, so without this every app
+    sharing the repo shows every sibling's pipeline — and a sibling's breakage as its own."""
+    hit = _wf_builds.get(repo)
+    if hit and time.time() - hit[0] < REPO_TTL:
+        return hit[1]
+    out = {}
+    try:
+        raw = _gh(["api", "graphql", "-f", "query=" + GQL_WORKFLOWS, "-F", f"o={gh_org()}",
+                   "-F", f"r={repo}", "--jq", ".data.repository.object.entries"], 30)
+        for entry in (json.loads(raw or "[]") or []):
+            text = ((entry or {}).get("object") or {}).get("text") or ""
+            name, image = WF_NAME_RE.search(text), WF_IMAGE_RE.search(text)
+            if name and image:
+                out[name.group(1)] = image.group(1)
+    except (RuntimeError, subprocess.SubprocessError, ValueError):
+        out = {}  # no workflow directory, no gh: every workflow stays on every card, as before
+    _wf_builds[repo] = (time.time(), out)
+    return out
+
+
+def app_workflows(app: str, repo: str, names: list) -> list:
+    """This app's workflows only, once the repo is proven to build more than one image. Two guards,
+    because a filter that matches nothing would empty the card: several images must exist, and one
+    of them must be this app's. Workflows that name no image are shared and always stay."""
+    builds = repo_builds(repo)
+    if len(set(builds.values())) < 2:
+        return names
+    owned = [n for n in names if builds.get(n) and app.endswith(builds[n])]
+    if not owned:
+        return names
+    return [n for n in names if n in owned or not builds.get(n)]
+
+
 def ci_status(app: str) -> dict:
     try:
         workload = workload_history(app)
@@ -620,8 +715,9 @@ def ci_status(app: str) -> dict:
     if not repo:
         return {"app": app, "repo": "", "workflows": [], "workload": workload}
     runs = ci_runs(repo)
+    names = list(dict.fromkeys(r.get("workflowName", "") for r in runs))
     out = []
-    for wf in dict.fromkeys(r.get("workflowName", "") for r in runs):
+    for wf in app_workflows(app, repo, names):
         mine = [r for r in runs if r.get("workflowName") == wf]
         out.append({"workflow": wf, "latest": with_pr(mine[0]), "broke": with_pr(first_breakage(mine))})
     return {"app": app, "repo": f"{gh_org()}/{repo}", "branch": org_repos().get(repo) or "main",
@@ -1394,6 +1490,12 @@ class Handler(BaseHTTPRequestHandler):
                     if APP_NAME_RE.match(a)][:MAX_CI_APPS]
             try:
                 self._send(200, {"ci": [ci_status(a) for a in apps]})
+            except Exception as e:  # noqa: BLE001
+                self._send(400, {"error": str(e)})
+            return
+        if u.path == "/api/my-ci":
+            try:
+                self._send(200, merged_ci())
             except Exception as e:  # noqa: BLE001
                 self._send(400, {"error": str(e)})
             return
